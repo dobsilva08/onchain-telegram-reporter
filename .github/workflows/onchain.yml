@@ -33,29 +33,39 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
-      # Ping opcional para validar Telegram
-      - name: Telegram ping (sanity check)
-        run: |
-          curl -sS -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
-            --data-urlencode "text=Ping do GitHub Actions ✅"
-
-      # Força modelo estável; troque para gpt-5 quando tiver acesso
-      - name: Run report and send on Telegram
+      # 1) Gera o relatório e o PDF SEM enviar (para garantir artifact mesmo se Telegram falhar)
+      - name: Generate report (no send)
+        id: gen
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python onchain_to_telegram.py --model gpt-4o
+        run: |
+          set -euo pipefail
+          python onchain_to_telegram.py --model gpt-4o-mini --no-send | tee gen.log
+          PDF_PATH=$(sed -n 's/^\[ok\] PDF gerado (sem enviar): //p' gen.log | tail -n1)
+          echo "pdf_path=$PDF_PATH" >> "$GITHUB_OUTPUT"
+          test -f "$PDF_PATH"
 
+      # 2) Faz upload do PDF como artifact (sempre disponível para download)
       - name: Upload PDF artifact
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Relatorio-On-Chain-diario
-          path: out/*.pdf
+          path: ${{ steps.gen.outputs.pdf_path }}
           retention-days: 7
 
+      # 3) Envia o PDF para o Telegram (se falhar, veremos o erro no log)
+      - name: Send PDF to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          curl -fsS -F document=@'${{ steps.gen.outputs.pdf_path }}' \
+            -F chat_id="${TELEGRAM_CHAT_ID}" \
+            -F caption="Relatório On-chain diário" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"
+
+      # 4) (Opcional) Persiste o contador
       - name: Persist counter (counters.json)
         run: |
           if [ -f counters.json ]; then
@@ -65,4 +75,3 @@ jobs:
             git diff --cached --quiet || git commit -m "chore: bump counter [skip ci]"
             git push
           fi
-
