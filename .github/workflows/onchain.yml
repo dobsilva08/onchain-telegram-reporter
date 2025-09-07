@@ -1,9 +1,10 @@
+
 name: On-chain diário
 
 on:
   schedule:
     # 09:00 UTC = 06:00 BRT
-    - cron: "0 10 * * *"
+    - cron: "0 9 * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -38,7 +39,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python onchain_to_telegram.py
+        run: |
+          python onchain_to_telegram.py
 
       - name: Upload PDF artifact
         if: always()
@@ -57,4 +59,3 @@ jobs:
             git diff --cached --quiet || git commit -m "chore: bump counter [skip ci]"
             git push
           fi
-
