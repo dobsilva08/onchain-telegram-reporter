@@ -1,4 +1,4 @@
-name: On-chain diário
+: On-chain diário
 
 on:
   schedule:
