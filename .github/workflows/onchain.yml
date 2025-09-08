@@ -1,4 +1,4 @@
-: On-chain diário
+name: On-chain diário
 
 on:
   schedule:
@@ -16,6 +16,9 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
+    env:
+      TZ: America/Sao_Paulo
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -30,14 +33,61 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
+      # --- DEBUG 1: workspace e arquivos
+      - name: Check workspace
+        run: |
+          set -e
+          echo "PWD:"; pwd
+          echo "LS:"; ls -la
+          test -f onchain_to_telegram.py && echo "OK: onchain_to_telegram.py presente" || (echo "ERRO: faltando onchain_to_telegram.py" && exit 1)
+
+      # --- DEBUG 2: secrets presentes (sem expor valores)
+      - name: Debug secrets presence
+        run: |
+          set -e
+          test -n "${{ secrets.OPENAI_API_KEY }}" && echo "OK: OPENAI_API_KEY presente" || (echo "ERRO: faltando OPENAI_API_KEY" && exit 1)
+          test -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" && echo "OK: TELEGRAM_BOT_TOKEN presente" || echo "AVISO: sem TELEGRAM_BOT_TOKEN"
+          test -n "${{ secrets.TELEGRAM_CHAT_ID }}" && echo "OK: TELEGRAM_CHAT_ID presente" || echo "AVISO: sem TELEGRAM_CHAT_ID"
+
+      # --- DEBUG 3: teste rápido na OpenAI (mesmo modelo do envio)
+      - name: OpenAI quick check
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+        run: |
+          set -e
+          MODEL="${OPENAI_MODEL}"
+          [ -z "$MODEL" ] && MODEL=gpt-4o-mini
+          echo "Testando modelo: $MODEL"
+          CODE=$(curl -sS -o oo.json -w "%{http_code}\n" https://api.openai.com/v1/chat/completions \
+            -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
+            -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"ok\"}],\"max_tokens\":4}")
+          echo "HTTP: $CODE"
+          if [ "$CODE" != "200" ]; then echo "OpenAI ERROR:"; tail -c 2000 oo.json; exit 1; fi
+
+      # --- DEBUG 4: ping no Telegram (opcional, falha aqui indica token/chat)
+      - name: Telegram ping
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -e
+          CODE=$(curl -sS -o tp.json -w "%{http_code}\n" -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=Ping do GitHub Actions ✅")
+          echo "HTTP: $CODE"
+          if [ "$CODE" != "200" ]; then echo "Telegram ERROR:"; cat tp.json; exit 1; fi
+
+      # --- ENVIO COMO MENSAGEM (sem PDF)
       - name: Send on-chain report as Telegram message
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
         run: |
-          # Use um modelo bem disponível; mude para gpt-5 quando tiver acesso
-          python onchain_to_telegram.py --model gpt-4o-mini --send-as message
+          set -e
+          MODEL="${OPENAI_MODEL}"; [ -z "$MODEL" ] && MODEL=gpt-4o-mini
+          python onchain_to_telegram.py --model "$MODEL" --send-as message
 
       - name: Persist counter (counters.json)
         run: |
