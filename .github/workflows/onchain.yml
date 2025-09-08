@@ -16,12 +16,9 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -33,39 +30,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
-      # 1) Gera o relatório e o PDF SEM enviar (para garantir artifact mesmo se Telegram falhar)
-      - name: Generate report (no send)
-        id: gen
+      - name: Send on-chain report as Telegram message
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          set -euo pipefail
-          python onchain_to_telegram.py --model gpt-4o-mini --no-send | tee gen.log
-          PDF_PATH=$(sed -n 's/^\[ok\] PDF gerado (sem enviar): //p' gen.log | tail -n1)
-          echo "pdf_path=$PDF_PATH" >> "$GITHUB_OUTPUT"
-          test -f "$PDF_PATH"
-
-      # 2) Faz upload do PDF como artifact (sempre disponível para download)
-      - name: Upload PDF artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Relatorio-On-Chain-diario
-          path: ${{ steps.gen.outputs.pdf_path }}
-          retention-days: 7
-
-      # 3) Envia o PDF para o Telegram (se falhar, veremos o erro no log)
-      - name: Send PDF to Telegram
-        env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          set -euo pipefail
-          curl -fsS -F document=@'${{ steps.gen.outputs.pdf_path }}' \
-            -F chat_id="${TELEGRAM_CHAT_ID}" \
-            -F caption="Relatório On-chain diário" \
-            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"
+          # Use um modelo bem disponível; mude para gpt-5 quando tiver acesso
+          python onchain_to_telegram.py --model gpt-4o-mini --send-as message
 
-      # 4) (Opcional) Persiste o contador
       - name: Persist counter (counters.json)
         run: |
           if [ -f counters.json ]; then
