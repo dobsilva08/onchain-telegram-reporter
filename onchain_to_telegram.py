@@ -88,7 +88,7 @@ def fallback_content(data_str: str, numero: int, motivo: str) -> str:
 
 def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -> Optional[str]:
     """
-    Retorna texto do LLM ou None se o erro for de quota/limite (para cair no fallback).
+    Retorna texto do LLM ou None se o erro for de quota/limite/modelo — para cair no fallback do app.
     provider: "groq" | "openai" | "openrouter" | "anthropic"
     """
     provider = (provider or "groq").lower()
@@ -100,21 +100,50 @@ def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -
             "Authorization": "Bearer " + keys.get("GROQ_API_KEY", ""),
             "Content-Type": "application/json",
         }
-        payload = {
-            "model": model or "llama3-70b-8192",
-            "messages": [
-                {"role": "system", "content": "Você é um analista on-chain sênior e escreve em português do Brasil."},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.35,
-            "max_tokens": 1800,
-        }
-        r = requests.post(url, headers=headers, json=payload, timeout=120)
-        if r.status_code in (401, 403, 429):
-            return None
-        if r.status_code != 200:
+
+        # Ordem de tentativas: o modelo passado, depois opções atuais e estáveis
+        candidates: List[str] = []
+        if model:
+            candidates.append(model)
+        candidates += ["llama-3.1-70b-versatile", "llama-3.1-8b-instant"]
+
+        # dedup preservando ordem
+        seen = set()
+        models_to_try = [m for m in candidates if not (m in seen or seen.add(m))]
+
+        for m in models_to_try:
+            payload = {
+                "model": m,
+                "messages": [
+                    {"role": "system", "content": "Você é um analista on-chain sênior e escreve em português do Brasil."},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.35,
+                "max_tokens": 1800,
+            }
+            r = requests.post(url, headers=headers, json=payload, timeout=120)
+
+            if r.status_code == 200:
+                return r.json()["choices"][0]["message"]["content"]
+
+            # Para estes status, tentamos o próximo modelo
+            if r.status_code in (400, 401, 403, 404, 429):
+                try:
+                    err_json = r.json()
+                    err_str = json.dumps(err_json).lower()
+                    # se for modelo descontinuado/não encontrado/não suportado, tenta próximo
+                    if any(k in err_str for k in ["decommissioned", "model_not_found", "not found", "no longer supported"]):
+                        continue
+                except Exception:
+                    pass
+                # 401/403/429 também tentam próximo (pode ser perm/promo limit); se todos falharem, cai no None
+                continue
+
+            # Outros erros: aborta com detalhe
             raise RuntimeError(f"GROQ error: HTTP {r.status_code} — {r.text}")
-        return r.json()["choices"][0]["message"]["content"]
+
+        # se chegou aqui, nenhuma tentativa funcionou
+        return None
 
     if provider == "openai":
         url = "https://api.openai.com/v1/chat/completions"
@@ -139,7 +168,6 @@ def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -
         return r.json()["choices"][0]["message"]["content"]
 
     if provider == "openrouter":
-        # OpenRouter também é compatível com chat/completions
         url = "https://openrouter.ai/api/v1/chat/completions"
         headers = {
             "Authorization": "Bearer " + keys.get("OPENROUTER_API_KEY", ""),
@@ -162,7 +190,6 @@ def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -
         return r.json()["choices"][0]["message"]["content"]
 
     if provider == "anthropic":
-        # Claude (Anthropic) usa /v1/messages (payload diferente)
         url = "https://api.anthropic.com/v1/messages"
         headers = {
             "x-api-key": keys.get("ANTHROPIC_API_KEY", ""),
@@ -181,7 +208,6 @@ def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -
         if r.status_code != 200:
             raise RuntimeError(f"Anthropic error: HTTP {r.status_code} — {r.text}")
         data = r.json()
-        # conteúdo vem em "content": [{"type":"text","text":"..."}]
         parts = data.get("content", [])
         text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
         return text
@@ -267,7 +293,7 @@ def main():
 
     try:
         content = llm_generate(args.provider, args.model, prompt, keys)
-        motivo  = None if content else f"sem cota/limite em {args.provider.upper()} ou chave ausente."
+        motivo  = None if content else f"sem cota/limite em {args.provider.upper()} ou modelo/chave ausente."
     except Exception as e:
         content = None
         motivo  = f"erro no provedor {args.provider.upper()}: {e}"
