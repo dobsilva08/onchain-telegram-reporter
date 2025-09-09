@@ -1,29 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Gera o relatório “Dados On-Chain — {data} — Diário — Nº {contador}”
-# e envia como MENSAGEM no Telegram (sem PDF por padrão).
 
 import os, json, argparse, requests, time, textwrap
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
 
-# --- Fuso BRT (sem horário de verão)
 BRT = timezone(timedelta(hours=-3), name="BRT")
 
 def load_env_if_present():
-    """Carrega variáveis de um .env (mesma pasta), se existir."""
     env_path = os.path.join(os.path.dirname(__file__), ".env")
     if os.path.exists(env_path):
-        with open(env_path, "r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                if k and v and k not in os.environ:
-                    os.environ[k.strip()] = v.strip()
+        for raw in open(env_path, "r", encoding="utf-8"):
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line: continue
+            k, v = line.split("=", 1)
+            if k and v and k not in os.environ:
+                os.environ[k.strip()] = v.strip()
 
-def today_brt_str() -> str:
+def today_brt_str():
     meses = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"]
     now = datetime.now(BRT)
     return f"{now.day} de {meses[now.month-1]} de {now.year}"
@@ -37,13 +31,8 @@ def iso_to_brt_human(iso_date: str) -> str:
         return iso_date
 
 def read_counter(counter_file: str, start_counter: int = 1) -> int:
-    """Lê/atualiza contador 'diario' em counters.json, retorna o Nº atual."""
     try:
-        if os.path.exists(counter_file):
-            with open(counter_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        else:
-            data = {}
+        data = json.load(open(counter_file, "r", encoding="utf-8")) if os.path.exists(counter_file) else {}
         val = int(data.get("diario", start_counter))
         data["diario"] = val + 1
         with open(counter_file, "w", encoding="utf-8") as f:
@@ -55,28 +44,56 @@ def read_counter(counter_file: str, start_counter: int = 1) -> int:
 def build_prompt(data_str: str, numero: int, metrics: Optional[Dict[str, Any]]) -> str:
     header = f"Dados On-Chain — {data_str} — Diário — Nº {numero}"
     rules = (
-        "Você é um analista on-chain sênior. Produza um relatório em português do Brasil no formato abaixo:\n"
-        "Estilo objetivo, profissional, sem links. Estruture com subtítulos.\n\n"
+        "Você é um analista on-chain sênior. Produza um relatório em português do Brasil, objetivo e profissional.\n"
         "TÍTULO (linha única):\n" + header + "\n\n"
         "REGRAS:\n"
-        "- Se houver métricas (JSON), use-as; se não houver, não invente números.\n"
-        "- Se limite a sinais qualitativos onde faltar dado (alta/baixa/estável) com prudência.\n"
-        "- Conter a data completa no 1º parágrafo.\n"
-        "- Blocos na ordem fixa (1 parágrafo cada, exceto onde indicado):\n"
+        "- Se houver métricas (JSON), use-as; se não houver, NÃO invente números: descreva sinais qualitativos.\n"
+        "- Sem links; inclua a data completa no primeiro parágrafo.\n"
+        "- Estrutura fixa (na ordem):\n"
         "  1) Exchange Inflow (MA7)\n"
         "  2) Exchange Netflow (Total)\n"
         "  3) Reservas em Exchanges\n"
         "  4) Fluxos de Baleias — 2 parágrafos: (a) depósitos whales/miners; (b) Whale Ratio\n"
         "  5) Resumo de Contexto Institucional\n"
-        "  6) Interpretação Executiva — 5–8 bullets curtos e acionáveis\n"
-        "  7) Conclusão — 1 parágrafo\n\n"
+        "  6) Interpretação Executiva — 5–8 bullets\n"
+        "  7) Conclusão\n\n"
         "DADOS (JSON opcional):\n"
     )
     dados = json.dumps(metrics, ensure_ascii=False, indent=2) if metrics else "null"
     return rules + dados
 
-def openai_generate(api_key: str, model: Optional[str], prompt: str) -> str:
-    """Chama o endpoint chat/completions com modelo compatível (padrão gpt-4o)."""
+def fallback_content(data_str: str, numero: int) -> str:
+    return textwrap.dedent(f"""
+    ⚠️ Não foi possível gerar o relatório automático hoje (quota da OpenAI insuficiente).
+    Data: {data_str} — Diário — Nº {numero}
+
+    Use o esqueleto abaixo para registro:
+
+    1) Exchange Inflow (MA7)
+    • Sinal qualitativo: (alta / baixa / estável). Observações principais.
+
+    2) Exchange Netflow (Total)
+    • Sinal qualitativo e implicações.
+
+    3) Reservas em Exchanges
+    • Tendência geral e leitura de risco de oferta.
+
+    4) Fluxos de Baleias
+    • (a) Depósitos de whales/miners: leitura qualitativa.
+    • (b) Whale Ratio: leitura qualitativa e implicações.
+
+    5) Resumo de Contexto Institucional
+    • Narrativa macro/fluxos institucionais.
+
+    6) Interpretação Executiva
+    • 5–8 bullets curtos e acionáveis.
+
+    7) Conclusão
+    • Encerramento executivo com enquadramento de risco.
+    """).strip()
+
+def openai_generate(api_key: str, model: Optional[str], prompt: str) -> Optional[str]:
+    """Retorna o texto ou None se quota insuficiente (429/insufficient_quota)."""
     model = model or os.environ.get("OPENAI_MODEL", "gpt-4o")
     url = "https://api.openai.com/v1/chat/completions"
     headers = {"Authorization": "Bearer " + api_key, "Content-Type": "application/json"}
@@ -90,12 +107,18 @@ def openai_generate(api_key: str, model: Optional[str], prompt: str) -> str:
         "max_tokens": 1800,
     }
     r = requests.post(url, headers=headers, json=payload, timeout=120)
+    if r.status_code == 429:
+        try:
+            err = r.json().get("error", {})
+            if err.get("type") == "insufficient_quota":
+                return None
+        except Exception:
+            pass
     if r.status_code != 200:
         raise RuntimeError(f"OpenAI API error: HTTP {r.status_code} — {r.text}")
     data = r.json()
     return data["choices"][0]["message"]["content"]
 
-# --------- Telegram (mensagens em partes <= 4096 chars) ---------
 def _chunk_message(text: str, limit: int = 3900) -> List[str]:
     parts: List[str] = []
     for block in text.split("\n\n"):
@@ -135,57 +158,53 @@ def telegram_send_messages(token: str, chat_id: str, messages: List[str], parse_
             raise RuntimeError(f"Telegram error: HTTP {r.status_code} — {r.text}")
         time.sleep(0.6)
 
-# --------------------------- main --------------------------------------
 def main():
     load_env_if_present()
-    p = argparse.ArgumentParser(description="Gera e envia relatório diário como mensagem no Telegram.")
-    p.add_argument("--date", help="Data (YYYY-MM-DD).")
-    p.add_argument("--start-counter", type=int, default=1)
-    p.add_argument("--counter-file", default=os.path.join(os.path.dirname(__file__), "counters.json"))
-    p.add_argument("--metrics", help="Caminho de JSON com métricas reais (opcional).")
-    p.add_argument("--model", help="Modelo OpenAI (padrão: $OPENAI_MODEL ou gpt-4o).")
-    p.add_argument("--send-as", choices=["message","pdf","both"], default="message",
-                   help="Formato de envio: message (padrão), pdf ou both.")
-    args = p.parse_args()
+    ap = argparse.ArgumentParser(description="Relatório on-chain diário → Telegram (mensagem).")
+    ap.add_argument("--date")
+    ap.add_argument("--start-counter", type=int, default=1)
+    ap.add_argument("--counter-file", default=os.path.join(os.path.dirname(__file__), "counters.json"))
+    ap.add_argument("--metrics")
+    ap.add_argument("--model")
+    ap.add_argument("--send-as", choices=["message","pdf","both"], default="message")
+    args = ap.parse_args()
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise SystemExit("Defina OPENAI_API_KEY (Secret do GitHub)")
-
-    tg_token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    tg_chat  = os.environ.get("TELEGRAM_CHAT_ID")
-    if args.send_as in ("message","both") and (not tg_token or not tg_chat):
-        raise SystemExit("Defina TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID para envio por mensagem.")
+    api_key = os.environ.get("OPENAI_API_KEY") or ""
+    tg_token = os.environ.get("TELEGRAM_BOT_TOKEN") or ""
+    tg_chat  = os.environ.get("TELEGRAM_CHAT_ID") or ""
 
     data_str = iso_to_brt_human(args.date) if args.date else today_brt_str()
     numero   = read_counter(args.counter_file, start_counter=args.start_counter)
 
     metrics = None
-    if args.metrics:
-        with open(args.metrics, "r", encoding="utf-8") as f:
-            metrics = json.load(f)
+    if args.metrics and os.path.exists(args.metrics):
+        metrics = json.load(open(args.metrics, "r", encoding="utf-8"))
 
-    prompt  = build_prompt(data_str, numero, metrics)
-    content = openai_generate(api_key, args.model, prompt).strip()
+    prompt = build_prompt(data_str, numero, metrics)
+    content = openai_generate(api_key, args.model, prompt)
 
-    titulo  = f"📊 <b>Dados On-Chain — {data_str} — Diário — Nº {numero}</b>"
-    corpo   = content
-    full    = f"{titulo}\n\n{corpo}"
+    titulo = f"📊 <b>Dados On-Chain — {data_str} — Diário — Nº {numero}</b>"
+
+    if content is None:
+        corpo = fallback_content(data_str, numero)
+        full  = f"{titulo}\n\n{corpo}\n\n<i>Motivo: quota insuficiente no provedor de IA. Verifique billing.</i>"
+    else:
+        full  = f"{titulo}\n\n{content.strip()}"
 
     if args.send_as in ("message","both"):
+        if not tg_token or not tg_chat:
+            raise SystemExit("Defina TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID para envio por mensagem.")
         msgs = _chunk_message(full, limit=3900)
         telegram_send_messages(tg_token, tg_chat, msgs, parse_mode="HTML")
-        print(f"[ok] Enviado como mensagem no Telegram em {len(msgs)} parte(s).")
+        print(f"[ok] Mensagem enviada em {len(msgs)} parte(s).")
 
     if args.send_as in ("pdf","both"):
-        # Mantém compatibilidade: salva texto num arquivo simples
         out_dir = os.path.join(os.path.dirname(__file__), "out")
         os.makedirs(out_dir, exist_ok=True)
         path = os.path.join(out_dir, f"Dados On-Chain — {data_str} — Diário — Nº {numero}.txt")
         with open(path, "w", encoding="utf-8") as f:
-            f.write(textwrap.dedent(full))
+            f.write(full)
         print("[ok] Texto salvo em:", path)
 
 if __name__ == "__main__":
     main()
-
