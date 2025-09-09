@@ -2,91 +2,30 @@ name: On-chain diário
 
 on:
   schedule:
-    # 09:15 UTC = 06:15 BRT
-    - cron: "15 9 * * *"
+    - cron: "15 9 * * *"   # 06:15 BRT
   workflow_dispatch: {}
 
 permissions:
   contents: write
 
-concurrency:
-  group: onchain-diario
-  cancel-in-progress: false
-
 jobs:
   run:
     runs-on: ubuntu-latest
-    env:
-      TZ: America/Sao_Paulo
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Install dependencies
+      - name: Install deps
         run: |
           python -m pip install --upgrade pip
           pip install requests
-
-      - name: Check workspace
-        run: |
-          set -e
-          ls -la
-          test -f onchain_to_telegram.py
-
-      - name: Debug secrets presence
-        run: |
-          set -e
-          test -n "${{ secrets.OPENAI_API_KEY }}" || (echo "FALTA: OPENAI_API_KEY" && exit 1)
-          test -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" || echo "AVISO: sem TELEGRAM_BOT_TOKEN"
-          test -n "${{ secrets.TELEGRAM_CHAT_ID }}"  || echo "AVISO: sem TELEGRAM_CHAT_ID"
-
-      # Quick check via Python usando gpt-4o no chat/completions
-      - name: OpenAI quick check
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          python - <<'PY'
-          import os, requests, json
-          key = os.environ["OPENAI_API_KEY"]
-          model = "gpt-4o"
-          r = requests.post(
-              "https://api.openai.com/v1/chat/completions",
-              headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
-              json={"model": model, "messages":[{"role":"user","content":"ok"}], "max_tokens": 4},
-              timeout=30
-          )
-          print("HTTP", r.status_code)
-          if r.status_code != 200:
-              print(r.text[:1000])
-              raise SystemExit(1)
-          PY
-
-      - name: Telegram ping
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          set -e
-          CODE=$(curl -sS -o tp.json -w "%{http_code}\n" -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=Ping do GitHub Actions ✅")
-          echo "HTTP: $CODE"
-          if [ "$CODE" != "200" ]; then echo "Telegram ERROR:"; cat tp.json; exit 1; fi
-
       - name: Send on-chain report as Telegram message
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          set -e
-          python onchain_to_telegram.py --model gpt-4o --send-as message
-
+        run: python onchain_to_telegram.py --model gpt-4o --send-as message
       - name: Persist counter (counters.json)
         run: |
           if [ -f counters.json ]; then
@@ -96,5 +35,3 @@ jobs:
             git diff --cached --quiet || git commit -m "chore: bump counter [skip ci]"
             git push
           fi
-
-
