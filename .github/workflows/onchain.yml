@@ -11,7 +11,6 @@ on:
 permissions:
   contents: write
 
-# Deixe false para evitar cancelar um run que já está enviando.
 concurrency:
   group: onchain-diario
   cancel-in-progress: false
@@ -22,13 +21,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Só para debug: confirma hora UTC e São Paulo nos logs
       - name: Debug time (UTC & São Paulo)
         run: |
           echo "UTC: $(date -u)"
           TZ=America/Sao_Paulo date
 
-      # Se já enviou hoje, pula
+      # Pula se já enviou hoje
       - name: Guard (skip if already sent today)
         id: guard
         run: |
@@ -55,6 +53,7 @@ jobs:
 
       - name: Send on-chain report (Groq)
         if: steps.guard.outputs.skip != 'true'
+        continue-on-error: true
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -66,7 +65,6 @@ jobs:
             --period daily \
             --send-as message
 
-      # Só marca sucesso DEPOIS do envio (para as tentativas seguintes pularem)
       - name: Mark success for today
         if: steps.guard.outputs.skip != 'true' && success()
         run: |
