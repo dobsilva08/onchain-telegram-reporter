@@ -53,7 +53,7 @@ def build_prompt(data_str: str, numero: int, metrics: Optional[Dict[str, Any]]) 
         "  1) Exchange Inflow (MA7)\n"
         "  2) Exchange Netflow (Total)\n"
         "  3) Reservas em Exchanges\n"
-        "  4) Fluxos de Baleias — 2 parágrafos: (a) depósitos whales/miners; (b) Whale Ratio\n"
+        "  4) Fluxos de Baleias — 2 parágrafos: (a) depósitos whales/miners; (b) Whale Ratio)\n"
         "  5) Resumo de Contexto Institucional\n"
         "  6) Interpretação Executiva — 5–8 bullets\n"
         "  7) Conclusão\n\n"
@@ -62,62 +62,103 @@ def build_prompt(data_str: str, numero: int, metrics: Optional[Dict[str, Any]]) 
     dados = json.dumps(metrics, ensure_ascii=False, indent=2) if metrics else "null"
     return rules + dados
 
-def fallback_content(data_str: str, numero: int) -> str:
+def fallback_content(data_str: str, numero: int, motivo: str) -> str:
     return textwrap.dedent(f"""
-    ⚠️ Não foi possível gerar o relatório automático hoje (quota da OpenAI insuficiente).
+    ⚠️ Não foi possível gerar o relatório automático hoje.
+    Motivo: {motivo}
     Data: {data_str} — Diário — Nº {numero}
 
     Use o esqueleto abaixo para registro:
 
-    1) Exchange Inflow (MA7)
-    • Sinal qualitativo: (alta / baixa / estável). Observações principais.
-
-    2) Exchange Netflow (Total)
-    • Sinal qualitativo e implicações.
-
-    3) Reservas em Exchanges
-    • Tendência geral e leitura de risco de oferta.
-
+    1) Exchange Inflow (MA7) — leitura qualitativa.
+    2) Exchange Netflow (Total) — leitura qualitativa.
+    3) Reservas em Exchanges — leitura qualitativa.
     4) Fluxos de Baleias
-    • (a) Depósitos de whales/miners: leitura qualitativa.
-    • (b) Whale Ratio: leitura qualitativa e implicações.
-
-    5) Resumo de Contexto Institucional
-    • Narrativa macro/fluxos institucionais.
-
-    6) Interpretação Executiva
-    • 5–8 bullets curtos e acionáveis.
-
-    7) Conclusão
-    • Encerramento executivo com enquadramento de risco.
+       • Depósitos de whales/miners — leitura qualitativa.
+       • Whale Ratio — leitura qualitativa.
+    5) Resumo de Contexto Institucional — narrativa macro.
+    6) Interpretação Executiva — 5–8 bullets curtos e acionáveis.
+    7) Conclusão — enquadramento de risco.
     """).strip()
 
-def openai_generate(api_key: str, model: Optional[str], prompt: str) -> Optional[str]:
-    """Retorna o texto ou None se quota insuficiente (429/insufficient_quota)."""
-    model = model or os.environ.get("OPENAI_MODEL", "gpt-4o")
-    url = "https://api.openai.com/v1/chat/completions"
-    headers = {"Authorization": "Bearer " + api_key, "Content-Type": "application/json"}
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": "Você é um analista on-chain sênior e escreve em português do Brasil."},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.35,
-        "max_tokens": 1800,
-    }
-    r = requests.post(url, headers=headers, json=payload, timeout=120)
-    if r.status_code == 429:
-        try:
-            err = r.json().get("error", {})
-            if err.get("type") == "insufficient_quota":
-                return None
-        except Exception:
-            pass
-    if r.status_code != 200:
-        raise RuntimeError(f"OpenAI API error: HTTP {r.status_code} — {r.text}")
-    data = r.json()
-    return data["choices"][0]["message"]["content"]
+# ---------------- LLM PROVIDERS ----------------
+
+def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -> Optional[str]:
+    """
+    Retorna texto do LLM ou None se o erro for de quota/limite (para cair no fallback).
+    provider: "groq" | "openai" | "openrouter" | "anthropic"
+    """
+    provider = (provider or "groq").lower()
+
+    if provider == "groq":
+        # Groq: endpoint compatível com OpenAI chat/completions
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {"Authorization": "Bearer " + keys.get("GROQ_API_KEY", ""), "Content-Type": "application/json"}
+        payload = {"model": model or "llama3-70b-8192",
+                   "messages":[{"role":"system","content":"Você é um analista on-chain sênior e escreve em português do Brasil."},
+                               {"role":"user","content":prompt}],
+                   "temperature":0.35,"max_tokens":1800}
+        r = requests.post(url, headers=headers, json=payload, timeout=120)
+        if r.status_code in (401, 403, 429):
+            return None
+        if r.status_code != 200:
+            raise RuntimeError(f"GROQ error: HTTP {r.status_code} — {r.text}")
+        return r.json()["choices"][0]["message"]["content"]
+
+    if provider == "openai":
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {"Authorization": "Bearer " + keys.get("OPENAI_API_KEY",""), "Content-Type": "application/json"}
+        payload = {"model": model or "gpt-4o",
+                   "messages":[{"role":"system","content":"Você é um analista on-chain sênior e escreve em português do Brasil."},
+                               {"role":"user","content":prompt}],
+                   "temperature":0.35,"max_tokens":1800}
+        r = requests.post(url, headers=headers, json=payload, timeout=120)
+        if r.status_code in (401,403,429):
+            return None
+        if r.status_code != 200:
+            raise RuntimeError(f"OpenAI error: HTTP {r.status_code} — {r.text}")
+        return r.json()["choices"][0]["message"]["content"]
+
+    if provider == "openrouter":
+        # OpenRouter também é compatível com chat/completions
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        headers = {"Authorization": "Bearer " + keys.get("OPENROUTER_API_KEY",""),
+                   "Content-Type": "application/json"}
+        payload = {"model": model or "meta-llama/llama-3.1-70b-instruct",
+                   "messages":[{"role":"system","content":"Você é um analista on-chain sênior e escreve em português do Brasil."},
+                               {"role":"user","content":prompt}],
+                   "temperature":0.35,"max_tokens":1800}
+        r = requests.post(url, headers=headers, json=payload, timeout=120)
+        if r.status_code in (401,403,429):
+            return None
+        if r.status_code != 200:
+            raise RuntimeError(f"OpenRouter error: HTTP {r.status_code} — {r.text}")
+        return r.json()["choices"][0]["message"]["content"]
+
+    if provider == "anthropic":
+        # Claude (Anthropic) usa /v1/messages (payload diferente)
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {"x-api-key": keys.get("ANTHROPIC_API_KEY",""),
+                   "anthropic-version": "2023-06-01",
+                   "content-type": "application/json"}
+        payload = {"model": model or "claude-3-5-sonnet-20240620",
+                   "max_tokens": 1800,
+                   "temperature": 0.35,
+                   "messages":[{"role":"user","content":prompt}]}
+        r = requests.post(url, headers=headers, json=payload, timeout=120)
+        if r.status_code in (401,403,429):
+            return None
+        if r.status_code != 200:
+            raise RuntimeError(f"Anthropic error: HTTP {r.status_code} — {r.text}")
+        data = r.json()
+        # conteúdo vem em "content": [{"type":"text","text":"..."}]
+        parts = data.get("content", [])
+        text = "".join(p.get("text","") for p in parts if isinstance(p, dict))
+        return text
+
+    raise RuntimeError(f"Provider desconhecido: {provider}")
+
+# --------- Telegram helpers ---------
 
 def _chunk_message(text: str, limit: int = 3900) -> List[str]:
     parts: List[str] = []
@@ -158,6 +199,8 @@ def telegram_send_messages(token: str, chat_id: str, messages: List[str], parse_
             raise RuntimeError(f"Telegram error: HTTP {r.status_code} — {r.text}")
         time.sleep(0.6)
 
+# --------------------------- main --------------------------------------
+
 def main():
     load_env_if_present()
     ap = argparse.ArgumentParser(description="Relatório on-chain diário → Telegram (mensagem).")
@@ -165,13 +208,23 @@ def main():
     ap.add_argument("--start-counter", type=int, default=1)
     ap.add_argument("--counter-file", default=os.path.join(os.path.dirname(__file__), "counters.json"))
     ap.add_argument("--metrics")
-    ap.add_argument("--model")
+    ap.add_argument("--provider", choices=["groq","openai","openrouter","anthropic"], default=os.environ.get("PROVIDER","groq"))
+    ap.add_argument("--model")  # depende do provider
     ap.add_argument("--send-as", choices=["message","pdf","both"], default="message")
     args = ap.parse_args()
 
-    api_key = os.environ.get("OPENAI_API_KEY") or ""
+    # Chaves por provider (todas opcionais; use a do provider escolhido)
+    keys = {
+        "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY",""),
+        "GROQ_API_KEY": os.environ.get("GROQ_API_KEY",""),
+        "OPENROUTER_API_KEY": os.environ.get("OPENROUTER_API_KEY",""),
+        "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY",""),
+    }
+
     tg_token = os.environ.get("TELEGRAM_BOT_TOKEN") or ""
     tg_chat  = os.environ.get("TELEGRAM_CHAT_ID") or ""
+    if args.send_as in ("message","both") and (not tg_token or not tg_chat):
+        raise SystemExit("Defina TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID para envio por mensagem.")
 
     data_str = iso_to_brt_human(args.date) if args.date else today_brt_str()
     numero   = read_counter(args.counter_file, start_counter=args.start_counter)
@@ -180,20 +233,19 @@ def main():
     if args.metrics and os.path.exists(args.metrics):
         metrics = json.load(open(args.metrics, "r", encoding="utf-8"))
 
-    prompt = build_prompt(data_str, numero, metrics)
-    content = openai_generate(api_key, args.model, prompt)
+    prompt  = build_prompt(data_str, numero, metrics)
+
+    try:
+        content = llm_generate(args.provider, args.model, prompt, keys)
+        motivo  = None if content else f"sem cota/limite em {args.provider.upper()} ou chave ausente."
+    except Exception as e:
+        content = None
+        motivo  = f"erro no provedor {args.provider.upper()}: {e}"
 
     titulo = f"📊 <b>Dados On-Chain — {data_str} — Diário — Nº {numero}</b>"
-
-    if content is None:
-        corpo = fallback_content(data_str, numero)
-        full  = f"{titulo}\n\n{corpo}\n\n<i>Motivo: quota insuficiente no provedor de IA. Verifique billing.</i>"
-    else:
-        full  = f"{titulo}\n\n{content.strip()}"
+    full   = f"{titulo}\n\n{content.strip() if content else fallback_content(data_str, numero, motivo)}"
 
     if args.send_as in ("message","both"):
-        if not tg_token or not tg_chat:
-            raise SystemExit("Defina TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID para envio por mensagem.")
         msgs = _chunk_message(full, limit=3900)
         telegram_send_messages(tg_token, tg_chat, msgs, parse_mode="HTML")
         print(f"[ok] Mensagem enviada em {len(msgs)} parte(s).")
