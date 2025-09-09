@@ -46,16 +46,15 @@ jobs:
           test -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" || echo "AVISO: sem TELEGRAM_BOT_TOKEN"
           test -n "${{ secrets.TELEGRAM_CHAT_ID }}"  || echo "AVISO: sem TELEGRAM_CHAT_ID"
 
-      # ✅ Quick check via Python (sem problemas de JSON)
+      # Quick check via Python usando gpt-4o no chat/completions
       - name: OpenAI quick check
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
         run: |
           python - <<'PY'
           import os, requests, json
           key = os.environ["OPENAI_API_KEY"]
-          model = os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
+          model = "gpt-4o"
           r = requests.post(
               "https://api.openai.com/v1/chat/completions",
               headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
@@ -84,11 +83,9 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
         run: |
           set -e
-          MODEL="${OPENAI_MODEL}"; [ -z "$MODEL" ] && MODEL=gpt-4o-mini
-          python onchain_to_telegram.py --model "$MODEL" --send-as message
+          python onchain_to_telegram.py --model gpt-4o --send-as message
 
       - name: Persist counter (counters.json)
         run: |
@@ -99,4 +96,5 @@ jobs:
             git diff --cached --quiet || git commit -m "chore: bump counter [skip ci]"
             git push
           fi
+
 
