@@ -33,39 +33,44 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
-      # --- DEBUG 1: workspace e arquivos
       - name: Check workspace
         run: |
           set -e
-          echo "PWD:"; pwd
-          echo "LS:"; ls -la
-          test -f onchain_to_telegram.py && echo "OK: onchain_to_telegram.py presente" || (echo "ERRO: faltando onchain_to_telegram.py" && exit 1)
+          ls -la
+          test -f onchain_to_telegram.py
 
-      # --- DEBUG 2: secrets presentes (sem expor valores)
       - name: Debug secrets presence
         run: |
           set -e
-          test -n "${{ secrets.OPENAI_API_KEY }}" && echo "OK: OPENAI_API_KEY presente" || (echo "ERRO: faltando OPENAI_API_KEY" && exit 1)
-          test -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" && echo "OK: TELEGRAM_BOT_TOKEN presente" || echo "AVISO: sem TELEGRAM_BOT_TOKEN"
-          test -n "${{ secrets.TELEGRAM_CHAT_ID }}" && echo "OK: TELEGRAM_CHAT_ID presente" || echo "AVISO: sem TELEGRAM_CHAT_ID"
+          test -n "${{ secrets.OPENAI_API_KEY }}" || (echo "FALTA: OPENAI_API_KEY" && exit 1)
+          test -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" || echo "AVISO: sem TELEGRAM_BOT_TOKEN"
+          test -n "${{ secrets.TELEGRAM_CHAT_ID }}"  || echo "AVISO: sem TELEGRAM_CHAT_ID"
 
-      # --- DEBUG 3: teste rápido na OpenAI (mesmo modelo do envio)
+      # ✅ FIX: usa here-doc para JSON válido
       - name: OpenAI quick check
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
         run: |
           set -e
-          MODEL="${OPENAI_MODEL}"
-          [ -z "$MODEL" ] && MODEL=gpt-4o-mini
+          MODEL="${OPENAI_MODEL}"; [ -z "$MODEL" ] && MODEL=gpt-4o-mini
           echo "Testando modelo: $MODEL"
+          cat > body.json <<JSON
+          {
+            "model": "$MODEL",
+            "messages": [{"role":"user","content":"ok"}],
+            "max_tokens": 4
+          }
+          JSON
           CODE=$(curl -sS -o oo.json -w "%{http_code}\n" https://api.openai.com/v1/chat/completions \
-            -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
-            -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"ok\"}],\"max_tokens\":4}")
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            --data-binary @body.json)
           echo "HTTP: $CODE"
-          if [ "$CODE" != "200" ]; then echo "OpenAI ERROR:"; tail -c 2000 oo.json; exit 1; fi
+          if [ "$CODE" != "200" ]; then
+            echo "OpenAI ERROR:"; tail -c 2000 oo.json; exit 1
+          fi
 
-      # --- DEBUG 4: ping no Telegram (opcional, falha aqui indica token/chat)
       - name: Telegram ping
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -77,7 +82,6 @@ jobs:
           echo "HTTP: $CODE"
           if [ "$CODE" != "200" ]; then echo "Telegram ERROR:"; cat tp.json; exit 1; fi
 
-      # --- ENVIO COMO MENSAGEM (sem PDF)
       - name: Send on-chain report as Telegram message
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
