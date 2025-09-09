@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os, json, argparse, requests, time, textwrap
+import os, json, argparse, requests, time, textwrap, html
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
 
+# Fuso para datas legíveis no Brasil
 BRT = timezone(timedelta(hours=-3), name="BRT")
+
+# ---------------- utilidades de ambiente/tempo ----------------
 
 def load_env_if_present():
     """Carrega variáveis de um .env (mesma pasta), se existir."""
@@ -19,7 +22,7 @@ def load_env_if_present():
             if k and v and k not in os.environ:
                 os.environ[k.strip()] = v.strip()
 
-def today_brt_str():
+def today_brt_str() -> str:
     meses = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"]
     now = datetime.now(BRT)
     return f"{now.day} de {meses[now.month-1]} de {now.year}"
@@ -32,20 +35,25 @@ def iso_to_brt_human(iso_date: str) -> str:
     except Exception:
         return iso_date
 
-def read_counter(counter_file: str, start_counter: int = 1) -> int:
-    """Lê/atualiza contador 'diario' em counters.json, retorna o Nº atual."""
+def read_counter(counter_file: str, key: str, start_counter: int = 1) -> int:
+    """
+    Lê/atualiza contador por chave (ex.: diario/semanal/mensal) em counters.json.
+    Retorna o Nº atual e já incrementa para o próximo.
+    """
     try:
         data = json.load(open(counter_file, "r", encoding="utf-8")) if os.path.exists(counter_file) else {}
-        val = int(data.get("diario", start_counter))
-        data["diario"] = val + 1
+        val = int(data.get(key, start_counter))
+        data[key] = val + 1
         with open(counter_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return val
     except Exception:
         return start_counter
 
-def build_prompt(data_str: str, numero: int, metrics: Optional[Dict[str, Any]]) -> str:
-    header = f"Dados On-Chain — {data_str} — Diário — Nº {numero}"
+# ---------------- prompt/estrutura ----------------
+
+def build_prompt(data_str: str, numero: int, metrics: Optional[Dict[str, Any]], label: str) -> str:
+    header = f"Dados On-Chain — {data_str} — {label} — Nº {numero}"
     rules = (
         "Você é um analista on-chain sênior. Produza um relatório em português do Brasil, objetivo e profissional.\n"
         "TÍTULO (linha única):\n" + header + "\n\n"
@@ -65,11 +73,11 @@ def build_prompt(data_str: str, numero: int, metrics: Optional[Dict[str, Any]]) 
     dados = json.dumps(metrics, ensure_ascii=False, indent=2) if metrics else "null"
     return rules + dados
 
-def fallback_content(data_str: str, numero: int, motivo: str) -> str:
+def fallback_content(data_str: str, numero: int, motivo: str, label: str) -> str:
     return textwrap.dedent(f"""
     ⚠️ Não foi possível gerar o relatório automático hoje.
     Motivo: {motivo}
-    Data: {data_str} — Diário — Nº {numero}
+    Data: {data_str} — {label} — Nº {numero}
 
     Use o esqueleto abaixo para registro:
 
@@ -84,75 +92,26 @@ def fallback_content(data_str: str, numero: int, motivo: str) -> str:
     7) Conclusão — enquadramento de risco.
     """).strip()
 
-# ---------------- LLM PROVIDERS ----------------
+# ---------------- LLM providers ----------------
 
-def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -> Optional[str]:
+def _groq_chat(model: str, prompt: str, api_key: str) -> Optional[str]:
     """
-    Retorna texto do LLM ou None se o erro for de quota/limite/modelo — para cair no fallback do app.
-    provider: "groq" | "openai" | "openrouter" | "anthropic"
+    Faz chamada ao endpoint OpenAI-compatível da Groq com fallback de modelos.
+    Retorna None para erros 401/403/429 (sem cota), levanta exceção para outros.
     """
-    provider = (provider or "groq").lower()
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
-    if provider == "groq":
-        # Groq: endpoint compatível com OpenAI chat/completions
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": "Bearer " + keys.get("GROQ_API_KEY", ""),
-            "Content-Type": "application/json",
-        }
+    # Ordem de preferência: mantém solicitado e tenta alternativas
+    fallbacks = [m for m in [model,
+                             "llama-3.1-70b-versatile",
+                             "llama-3.1-8b-instant",
+                             "gemma2-9b-it"] if m]
 
-        # Ordem de tentativas: o modelo passado, depois opções atuais e estáveis
-        candidates: List[str] = []
-        if model:
-            candidates.append(model)
-        candidates += ["llama-3.1-70b-versatile", "llama-3.1-8b-instant"]
-
-        # dedup preservando ordem
-        seen = set()
-        models_to_try = [m for m in candidates if not (m in seen or seen.add(m))]
-
-        for m in models_to_try:
-            payload = {
-                "model": m,
-                "messages": [
-                    {"role": "system", "content": "Você é um analista on-chain sênior e escreve em português do Brasil."},
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0.35,
-                "max_tokens": 1800,
-            }
-            r = requests.post(url, headers=headers, json=payload, timeout=120)
-
-            if r.status_code == 200:
-                return r.json()["choices"][0]["message"]["content"]
-
-            # Para estes status, tentamos o próximo modelo
-            if r.status_code in (400, 401, 403, 404, 429):
-                try:
-                    err_json = r.json()
-                    err_str = json.dumps(err_json).lower()
-                    # se for modelo descontinuado/não encontrado/não suportado, tenta próximo
-                    if any(k in err_str for k in ["decommissioned", "model_not_found", "not found", "no longer supported"]):
-                        continue
-                except Exception:
-                    pass
-                # 401/403/429 também tentam próximo (pode ser perm/promo limit); se todos falharem, cai no None
-                continue
-
-            # Outros erros: aborta com detalhe
-            raise RuntimeError(f"GROQ error: HTTP {r.status_code} — {r.text}")
-
-        # se chegou aqui, nenhuma tentativa funcionou
-        return None
-
-    if provider == "openai":
-        url = "https://api.openai.com/v1/chat/completions"
-        headers = {
-            "Authorization": "Bearer " + keys.get("OPENAI_API_KEY", ""),
-            "Content-Type": "application/json",
-        }
+    last_err = None
+    for mdl in fallbacks:
         payload = {
-            "model": model or "gpt-4o",
+            "model": mdl,
             "messages": [
                 {"role": "system", "content": "Você é um analista on-chain sênior e escreve em português do Brasil."},
                 {"role": "user", "content": prompt},
@@ -162,59 +121,81 @@ def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -
         }
         r = requests.post(url, headers=headers, json=payload, timeout=120)
         if r.status_code in (401, 403, 429):
+            # sem cota/chave inválida -> sinaliza fallback geral
+            return None
+        if r.status_code == 200:
+            try:
+                return r.json()["choices"][0]["message"]["content"]
+            except Exception as e:
+                last_err = f"parse error: {e} / body={r.text[:200]}"
+        else:
+            # guarda e tenta o próximo
+            last_err = f"HTTP {r.status_code} — {r.text[:200]}"
+
+    if last_err:
+        raise RuntimeError(f"GROQ error: {last_err}")
+    return None
+
+def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -> Optional[str]:
+    """
+    Retorna texto do LLM ou None se o erro for de quota/limite (para cair no fallback).
+    provider: "groq" | "openai" | "openrouter" | "anthropic"
+    """
+    p = (provider or "groq").lower()
+
+    if p == "groq":
+        return _groq_chat(model or "llama-3.1-70b-versatile", prompt, keys.get("GROQ_API_KEY", ""))
+
+    if p == "openai":
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {"Authorization": "Bearer " + keys.get("OPENAI_API_KEY",""), "Content-Type": "application/json"}
+        payload = {"model": model or "gpt-4o",
+                   "messages":[{"role":"system","content":"Você é um analista on-chain sênior e escreve em português do Brasil."},
+                               {"role":"user","content":prompt}],
+                   "temperature":0.35,"max_tokens":1800}
+        r = requests.post(url, headers=headers, json=payload, timeout=120)
+        if r.status_code in (401,403,429):
             return None
         if r.status_code != 200:
             raise RuntimeError(f"OpenAI error: HTTP {r.status_code} — {r.text}")
         return r.json()["choices"][0]["message"]["content"]
 
-    if provider == "openrouter":
+    if p == "openrouter":
         url = "https://openrouter.ai/api/v1/chat/completions"
-        headers = {
-            "Authorization": "Bearer " + keys.get("OPENROUTER_API_KEY", ""),
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": model or "meta-llama/llama-3.1-70b-instruct",
-            "messages": [
-                {"role": "system", "content": "Você é um analista on-chain sênior e escreve em português do Brasil."},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.35,
-            "max_tokens": 1800,
-        }
+        headers = {"Authorization": "Bearer " + keys.get("OPENROUTER_API_KEY",""), "Content-Type": "application/json"}
+        payload = {"model": model or "meta-llama/llama-3.1-70b-instruct",
+                   "messages":[{"role":"system","content":"Você é um analista on-chain sênior e escreve em português do Brasil."},
+                               {"role":"user","content":prompt}],
+                   "temperature":0.35,"max_tokens":1800}
         r = requests.post(url, headers=headers, json=payload, timeout=120)
-        if r.status_code in (401, 403, 429):
+        if r.status_code in (401,403,429):
             return None
         if r.status_code != 200:
             raise RuntimeError(f"OpenRouter error: HTTP {r.status_code} — {r.text}")
         return r.json()["choices"][0]["message"]["content"]
 
-    if provider == "anthropic":
+    if p == "anthropic":
         url = "https://api.anthropic.com/v1/messages"
-        headers = {
-            "x-api-key": keys.get("ANTHROPIC_API_KEY", ""),
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        }
-        payload = {
-            "model": model or "claude-3-5-sonnet-20240620",
-            "max_tokens": 1800,
-            "temperature": 0.35,
-            "messages": [{"role": "user", "content": prompt}],
-        }
+        headers = {"x-api-key": keys.get("ANTHROPIC_API_KEY",""),
+                   "anthropic-version": "2023-06-01",
+                   "content-type": "application/json"}
+        payload = {"model": model or "claude-3-5-sonnet-20240620",
+                   "max_tokens": 1800,
+                   "temperature": 0.35,
+                   "messages":[{"role":"user","content":prompt}]}
         r = requests.post(url, headers=headers, json=payload, timeout=120)
-        if r.status_code in (401, 403, 429):
+        if r.status_code in (401,403,429):
             return None
         if r.status_code != 200:
             raise RuntimeError(f"Anthropic error: HTTP {r.status_code} — {r.text}")
         data = r.json()
         parts = data.get("content", [])
-        text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
+        text = "".join(p.get("text","") for p in parts if isinstance(p, dict))
         return text
 
     raise RuntimeError(f"Provider desconhecido: {provider}")
 
-# --------- Telegram helpers ---------
+# ---------------- Telegram helpers ----------------
 
 def _chunk_message(text: str, limit: int = 3900) -> List[str]:
     parts: List[str] = []
@@ -244,7 +225,7 @@ def _chunk_message(text: str, limit: int = 3900) -> List[str]:
                 parts.append(acc)
     return parts if parts else ["(vazio)"]
 
-def telegram_send_messages(token: str, chat_id: str, messages: List[str], parse_mode: str = "HTML"):
+def telegram_send_messages(token: str, chat_id: str, messages: List[str], parse_mode: Optional[str] = "HTML"):
     base = f"https://api.telegram.org/bot{token}/sendMessage"
     for msg in messages:
         data = {"chat_id": chat_id, "text": msg, "disable_web_page_preview": True}
@@ -259,17 +240,24 @@ def telegram_send_messages(token: str, chat_id: str, messages: List[str], parse_
 
 def main():
     load_env_if_present()
-    ap = argparse.ArgumentParser(description="Relatório on-chain diário → Telegram (mensagem).")
-    ap.add_argument("--date")
+    ap = argparse.ArgumentParser(description="Relatório on-chain → Telegram.")
+    ap.add_argument("--date", help="YYYY-MM-DD (opcional)")
     ap.add_argument("--start-counter", type=int, default=1)
     ap.add_argument("--counter-file", default=os.path.join(os.path.dirname(__file__), "counters.json"))
     ap.add_argument("--metrics")
     ap.add_argument("--provider", choices=["groq","openai","openrouter","anthropic"], default=os.environ.get("PROVIDER","groq"))
     ap.add_argument("--model")  # depende do provider
+    ap.add_argument("--period", choices=["daily","weekly","monthly"], default="daily")
     ap.add_argument("--send-as", choices=["message","pdf","both"], default="message")
     args = ap.parse_args()
 
-    # Chaves por provider (todas opcionais; use a do provider escolhido)
+    # labels/keys por período
+    label_map = {"daily": "Diário", "weekly": "Semanal", "monthly": "Mensal"}
+    key_map   = {"daily": "diario", "weekly": "semanal", "monthly": "mensal"}
+    label     = label_map.get(args.period, "Diário")
+    key       = key_map.get(args.period, "diario")
+
+    # Chaves por provider (use a pertinente)
     keys = {
         "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY",""),
         "GROQ_API_KEY": os.environ.get("GROQ_API_KEY",""),
@@ -283,23 +271,27 @@ def main():
         raise SystemExit("Defina TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID para envio por mensagem.")
 
     data_str = iso_to_brt_human(args.date) if args.date else today_brt_str()
-    numero   = read_counter(args.counter_file, start_counter=args.start_counter)
+    numero   = read_counter(args.counter_file, key=key, start_counter=args.start_counter)
 
     metrics = None
     if args.metrics and os.path.exists(args.metrics):
         metrics = json.load(open(args.metrics, "r", encoding="utf-8"))
 
-    prompt  = build_prompt(data_str, numero, metrics)
+    prompt  = build_prompt(data_str, numero, metrics, label)
 
     try:
         content = llm_generate(args.provider, args.model, prompt, keys)
-        motivo  = None if content else f"sem cota/limite em {args.provider.upper()} ou modelo/chave ausente."
+        motivo  = None if content else f"sem cota/limite em {args.provider.upper()} ou chave ausente."
     except Exception as e:
         content = None
         motivo  = f"erro no provedor {args.provider.upper()}: {e}"
 
-    titulo = f"📊 <b>Dados On-Chain — {data_str} — Diário — Nº {numero}</b>"
-    full   = f"{titulo}\n\n{content.strip() if content else fallback_content(data_str, numero, motivo)}"
+    titulo = f"📊 <b>Dados On-Chain — {data_str} — {label} — Nº {numero}</b>"
+    corpo  = content.strip() if content else fallback_content(data_str, numero, motivo, label)
+
+    # Evita erro de parse no Telegram
+    corpo_seguro = html.escape(corpo, quote=False)
+    full = f"{titulo}\n\n{corpo_seguro}"
 
     if args.send_as in ("message","both"):
         msgs = _chunk_message(full, limit=3900)
@@ -309,7 +301,7 @@ def main():
     if args.send_as in ("pdf","both"):
         out_dir = os.path.join(os.path.dirname(__file__), "out")
         os.makedirs(out_dir, exist_ok=True)
-        path = os.path.join(out_dir, f"Dados On-Chain — {data_str} — Diário — Nº {numero}.txt")
+        path = os.path.join(out_dir, f"Dados On-Chain — {data_str} — {label} — Nº {numero}.txt")
         with open(path, "w", encoding="utf-8") as f:
             f.write(full)
         print("[ok] Texto salvo em:", path)
