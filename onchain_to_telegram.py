@@ -8,11 +8,13 @@ from typing import Optional, Dict, Any, List
 BRT = timezone(timedelta(hours=-3), name="BRT")
 
 def load_env_if_present():
+    """Carrega variáveis de um .env (mesma pasta), se existir."""
     env_path = os.path.join(os.path.dirname(__file__), ".env")
     if os.path.exists(env_path):
         for raw in open(env_path, "r", encoding="utf-8"):
             line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line: continue
+            if not line or line.startswith("#") or "=" not in line:
+                continue
             k, v = line.split("=", 1)
             if k and v and k not in os.environ:
                 os.environ[k.strip()] = v.strip()
@@ -31,6 +33,7 @@ def iso_to_brt_human(iso_date: str) -> str:
         return iso_date
 
 def read_counter(counter_file: str, start_counter: int = 1) -> int:
+    """Lê/atualiza contador 'diario' em counters.json, retorna o Nº atual."""
     try:
         data = json.load(open(counter_file, "r", encoding="utf-8")) if os.path.exists(counter_file) else {}
         val = int(data.get("diario", start_counter))
@@ -93,11 +96,19 @@ def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -
     if provider == "groq":
         # Groq: endpoint compatível com OpenAI chat/completions
         url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {"Authorization": "Bearer " + keys.get("GROQ_API_KEY", ""), "Content-Type": "application/json"}
-        payload = {"model": model or "llama3-70b-8192",
-                   "messages":[{"role":"system","content":"Você é um analista on-chain sênior e escreve em português do Brasil."},
-                               {"role":"user","content":prompt}],
-                   "temperature":0.35,"max_tokens":1800}
+        headers = {
+            "Authorization": "Bearer " + keys.get("GROQ_API_KEY", ""),
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model or "llama3-70b-8192",
+            "messages": [
+                {"role": "system", "content": "Você é um analista on-chain sênior e escreve em português do Brasil."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.35,
+            "max_tokens": 1800,
+        }
         r = requests.post(url, headers=headers, json=payload, timeout=120)
         if r.status_code in (401, 403, 429):
             return None
@@ -107,13 +118,21 @@ def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -
 
     if provider == "openai":
         url = "https://api.openai.com/v1/chat/completions"
-        headers = {"Authorization": "Bearer " + keys.get("OPENAI_API_KEY",""), "Content-Type": "application/json"}
-        payload = {"model": model or "gpt-4o",
-                   "messages":[{"role":"system","content":"Você é um analista on-chain sênior e escreve em português do Brasil."},
-                               {"role":"user","content":prompt}],
-                   "temperature":0.35,"max_tokens":1800}
+        headers = {
+            "Authorization": "Bearer " + keys.get("OPENAI_API_KEY", ""),
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model or "gpt-4o",
+            "messages": [
+                {"role": "system", "content": "Você é um analista on-chain sênior e escreve em português do Brasil."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.35,
+            "max_tokens": 1800,
+        }
         r = requests.post(url, headers=headers, json=payload, timeout=120)
-        if r.status_code in (401,403,429):
+        if r.status_code in (401, 403, 429):
             return None
         if r.status_code != 200:
             raise RuntimeError(f"OpenAI error: HTTP {r.status_code} — {r.text}")
@@ -122,14 +141,21 @@ def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -
     if provider == "openrouter":
         # OpenRouter também é compatível com chat/completions
         url = "https://openrouter.ai/api/v1/chat/completions"
-        headers = {"Authorization": "Bearer " + keys.get("OPENROUTER_API_KEY",""),
-                   "Content-Type": "application/json"}
-        payload = {"model": model or "meta-llama/llama-3.1-70b-instruct",
-                   "messages":[{"role":"system","content":"Você é um analista on-chain sênior e escreve em português do Brasil."},
-                               {"role":"user","content":prompt}],
-                   "temperature":0.35,"max_tokens":1800}
+        headers = {
+            "Authorization": "Bearer " + keys.get("OPENROUTER_API_KEY", ""),
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model or "meta-llama/llama-3.1-70b-instruct",
+            "messages": [
+                {"role": "system", "content": "Você é um analista on-chain sênior e escreve em português do Brasil."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.35,
+            "max_tokens": 1800,
+        }
         r = requests.post(url, headers=headers, json=payload, timeout=120)
-        if r.status_code in (401,403,429):
+        if r.status_code in (401, 403, 429):
             return None
         if r.status_code != 200:
             raise RuntimeError(f"OpenRouter error: HTTP {r.status_code} — {r.text}")
@@ -138,22 +164,26 @@ def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -
     if provider == "anthropic":
         # Claude (Anthropic) usa /v1/messages (payload diferente)
         url = "https://api.anthropic.com/v1/messages"
-        headers = {"x-api-key": keys.get("ANTHROPIC_API_KEY",""),
-                   "anthropic-version": "2023-06-01",
-                   "content-type": "application/json"}
-        payload = {"model": model or "claude-3-5-sonnet-20240620",
-                   "max_tokens": 1800,
-                   "temperature": 0.35,
-                   "messages":[{"role":"user","content":prompt}]}
+        headers = {
+            "x-api-key": keys.get("ANTHROPIC_API_KEY", ""),
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        payload = {
+            "model": model or "claude-3-5-sonnet-20240620",
+            "max_tokens": 1800,
+            "temperature": 0.35,
+            "messages": [{"role": "user", "content": prompt}],
+        }
         r = requests.post(url, headers=headers, json=payload, timeout=120)
-        if r.status_code in (401,403,429):
+        if r.status_code in (401, 403, 429):
             return None
         if r.status_code != 200:
             raise RuntimeError(f"Anthropic error: HTTP {r.status_code} — {r.text}")
         data = r.json()
         # conteúdo vem em "content": [{"type":"text","text":"..."}]
         parts = data.get("content", [])
-        text = "".join(p.get("text","") for p in parts if isinstance(p, dict))
+        text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
         return text
 
     raise RuntimeError(f"Provider desconhecido: {provider}")
