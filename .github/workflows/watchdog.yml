@@ -1,0 +1,46 @@
+name: On-chain watchdog (garantia)
+
+on:
+  # 07:05 BRT = 10:05 UTC
+  schedule:
+    - cron: "5 10 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  ensure_daily_ran:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Compute São Paulo date (YYYY-MM-DD)
+        id: dt
+        run: |
+          SAOPAULO_DATE=$(TZ=America/Sao_Paulo date +%F)
+          echo "sp_date=$SAOPAULO_DATE" >> "$GITHUB_OUTPUT"
+          echo "Procurando: .sent/done-daily-$SAOPAULO_DATE"
+
+      - name: Check if today's .sent exists
+        id: check
+        run: |
+          if [[ -f ".sent/done-daily-${{ steps.dt.outputs.sp_date }}" ]]; then
+            echo "already_sent=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Já foi enviado hoje."
+          else
+            echo "already_sent=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️ Ainda NÃO foi enviado hoje."
+          fi
+
+      - name: Trigger daily workflow (workflow_dispatch)
+        if: steps.check.outputs.already_sent == 'false'
+        run: |
+          curl -sSL -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/onchain.yml/dispatches \
+            -d '{"ref":"main"}'
