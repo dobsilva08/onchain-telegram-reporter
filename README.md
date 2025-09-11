@@ -1,6 +1,7 @@
 # Automação — Relatório On-Chain **BTC** (Telegram + GitHub Actions)
 
-Gera e envia para o **Telegram** um relatório de **Dados On-Chain do Bitcoin** em **texto** (sem PDF).  
+Gera e envia para o **Telegram** um relatório de **Dados On-Chain do Bitcoin** em **texto** 
+
 Há rotinas **diária**, **semanal** e **mensal**, com **watchdogs** que disparam se o horário principal falhar.
 
 Por padrão usamos **Groq / Llama-3**; também é possível usar **OpenAI**, **OpenRouter** ou **Anthropic**.
