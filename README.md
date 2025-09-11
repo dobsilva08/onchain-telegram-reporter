@@ -63,4 +63,50 @@ salva em PDF e envia para o **Telegram** com o seu bot.
 └── .github
     └── workflows
         └── onchain.yml
-```
+
+> **Somente BTC**: o prompt do `onchain_to_telegram.py` está ajustado para **Bitcoin**.
+
+---
+
+## Segredos (GitHub → Settings → *Secrets and variables* → **Actions**)
+
+Obrigatórios:
+
+- `TELEGRAM_BOT_TOKEN` → token do seu bot (criado no **@BotFather**)
+- `TELEGRAM_CHAT_ID` → chat/grupo de destino (ex.: `-1001234567880` para grupos)
+- **Um** provedor de LLM (o padrão é Groq):
+  - `GROQ_API_KEY` *(padrão)* **ou**
+  - `OPENAI_API_KEY` **ou**
+  - `OPENROUTER_API_KEY` **ou**
+  - `ANTHROPIC_API_KEY`
+
+> Coloque o **bot dentro do grupo** (ideal como **admin**) para poder postar.
+
+---
+
+## Agendamentos
+
+### Tabela de horários
+
+| Workflow               | UTC                              | BRT (São Paulo)             | Obs. |
+|------------------------|----------------------------------|-----------------------------|------|
+| **Diário (principal)** | 09:15, 09:30, 09:45, 10:00       | 06:15, 06:30, 06:45, 07:00  | Janelas de backup |
+| **Watchdog diário**    | 10:10                            | 07:10                       | Dispara se não houver selo `.sent` do dia |
+| **Semanal (sábado)**   | 10:05 (sábado)                   | 07:05 (sábado)              | Gera “semanal” |
+| **Watchdog semanal**   | 10:25 (sábado)                   | 07:25 (sábado)              | Dispara se não houver selo semanal |
+| **Mensal (dia 1)**     | 10:10 (dia 1)                    | 07:10 (dia 1)               | Gera “mensal” |
+| **Watchdog mensal**    | 10:30 (dia 1)                    | 07:30 (dia 1)               | Dispara se não houver selo mensal |
+
+Os crons estão nos arquivos dentro de `.github/workflows/`. Edite os `cron:` caso precise ajustar.
+
+---
+
+## Como roda por dentro
+
+O passo de envio (exemplo) chama:
+
+```bash
+python onchain_to_telegram.py \
+  --provider groq \
+  --model llama-3.1-70b-versatile \
+  --send-as message
