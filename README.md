@@ -2,7 +2,7 @@
 # Automação — Dados On-Chain → BTC (GitHub Actions)
 
 Este repositório roda diariamente, gera o relatório **Dados On-Chain — {data} — Diário — Nº {contador}** via OpenAI API,
-salva em PDF e envia para o **Telegram** com o seu bot.
+salva em texto e envia para o **Telegram** com o seu bot.
 
 ## Arquivos principais
 - `onchain_to_telegram.py` — gera o texto com a OpenAI, cria o PDF e envia no Telegram.
