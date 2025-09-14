@@ -1,0 +1,42 @@
+name: Send On-chain Report to Telegram Topic
+
+on:
+  workflow_dispatch:
+  schedule:
+    # TODO: Copie aqui os MESMOS crons do workflow atual (lembrando: UTC)
+    # - cron: '15 09 * * *'   # exemplo: 06:15 America/Sao_Paulo = 09:15 UTC
+    # - cron: '15 09 * * 1'   # exemplo semanal
+    # - cron: '15 09 1 * *'   # exemplo mensal
+
+jobs:
+  send-topic:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_TOPIC_ID:  ${{ secrets.TELEGRAM_TOPIC_ID }}  # novo secret: ID do tópico
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Generate report (ajuste conforme seu repo)
+        run: |
+          # TODO: rode aqui o MESMO script que já gera o relatório
+          # Ex.1 (texto):  python scripts/generate_report.py > dist/report.md
+          # Ex.2 (imagem): python scripts/generate_chart.py   # gera dist/chart.png
+          echo "Relatório on-chain BTC - placeholder" > dist/report.md
+
+      - name: Send to topic (texto)
+        if: ${{ exists('dist/report.md') }}
+        run: python send_to_topic.py --file dist/report.md --parse-mode HTML
+
+      - name: Send to topic (imagem + legenda)  # opcional
+        if: ${{ exists('dist/chart.png') }}
+        run: python send_to_topic.py --photo dist/chart.png --caption "Relatório on-chain BTC" --parse-mode HTML
