@@ -1,42 +1,51 @@
-name: Send On-chain Report to Telegram Topic
+name: On-chain → Telegram Topic (Diário)
 
 on:
   workflow_dispatch:
   schedule:
-    # TODO: Copie aqui os MESMOS crons do workflow atual (lembrando: UTC)
-    # - cron: '15 09 * * *'   # exemplo: 06:15 America/Sao_Paulo = 09:15 UTC
-    # - cron: '15 09 * * 1'   # exemplo semanal
-    # - cron: '15 09 1 * *'   # exemplo mensal
+    - cron: "15 9 * * *"   # 06:15 BRT
+    - cron: "30 9 * * *"   # 06:30 BRT
+    - cron: "45 9 * * *"   # 06:45 BRT
+    - cron: "0 10 * * *"   # 07:00 BRT
+    - cron: "10 10 * * *"  # Watchdog diário 07:10 BRT
 
 jobs:
-  send-topic:
+  send-to-topic:
     runs-on: ubuntu-latest
-    permissions: { contents: read }
+    permissions:
+      contents: read   # não comita nada; evita interferir nos selos
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
-      TELEGRAM_TOPIC_ID:  ${{ secrets.TELEGRAM_TOPIC_ID }}  # novo secret: ID do tópico
+      TELEGRAM_TOPIC_ID:  ${{ vars.TELEGRAM_TOPIC_ID }}   # Actions → Variables
     steps:
       - uses: actions/checkout@v4
 
+      - name: Garantir TOPIC_ID
+        run: |
+          if [ -z "${TELEGRAM_TOPIC_ID}" ]; then
+            echo "::error::Defina Actions → Variables → TELEGRAM_TOPIC_ID (message_thread_id do tópico)."
+            exit 1
+          fi
+
       - name: Setup Python
         uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
+        with:
+          python-version: "3.11"
 
       - name: Install deps
         run: pip install requests
 
-      - name: Generate report (ajuste conforme seu repo)
+      - name: Gerar relatório (mesmo conteúdo) → arquivo
         run: |
-          # TODO: rode aqui o MESMO script que já gera o relatório
-          # Ex.1 (texto):  python scripts/generate_report.py > dist/report.md
-          # Ex.2 (imagem): python scripts/generate_chart.py   # gera dist/chart.png
-          echo "Relatório on-chain BTC - placeholder" > dist/report.md
+          mkdir -p dist
+          # ⬇️ TENTE primeiro imprimir o texto no STDOUT e redirecionar para arquivo.
+          # Se seu script suportar isso, este comando funciona:
+          # python onchain_to_telegram.py --provider groq --model llama-3.1-70b-versatile --send-as stdout > dist/report.md
+          #
+          # Caso NÃO exista modo stdout, substitua a linha acima por um comando
+          # que grave o relatório em "dist/report.md" sem enviar ao Telegram.
+          echo "⚠️ TODO: troque este placeholder pela geração real do relatório." > dist/report.md
 
-      - name: Send to topic (texto)
-        if: ${{ exists('dist/report.md') }}
+      - name: Enviar texto para o TÓPICO
         run: python send_to_topic.py --file dist/report.md --parse-mode HTML
-
-      - name: Send to topic (imagem + legenda)  # opcional
-        if: ${{ exists('dist/chart.png') }}
-        run: python send_to_topic.py --photo dist/chart.png --caption "Relatório on-chain BTC" --parse-mode HTML
