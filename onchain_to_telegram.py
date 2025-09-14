@@ -53,7 +53,7 @@ def read_counter(counter_file: str, key: str, start_counter: int = 1) -> int:
 # ---------------- prompt/estrutura ----------------
 
 def build_prompt(data_str: str, numero: int, metrics: Optional[Dict[str, Any]], label: str) -> str:
-    header = f"Dados On-Chain — {data_str} — {label} — Nº {numero}"
+    header = f"Dados On-Chain - BTC — {data_str} — {label} — Nº {numero}"
     rules = (
         "Você é um analista on-chain sênior. Produza um relatório em português do Brasil, objetivo e profissional.\n"
         "TÍTULO (linha única):\n" + header + "\n\n"
