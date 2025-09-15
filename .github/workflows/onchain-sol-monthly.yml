@@ -1,0 +1,36 @@
+name: On-chain SOL — Mensal
+
+on:
+  schedule:
+    - cron: "10 10 1 * *"
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Send on-chain SOL (monthly)
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          SOL_TELEGRAM_CHAT_ID: ${{ secrets.SOL_TELEGRAM_CHAT_ID }}
+          SOL_TELEGRAM_TOPIC_ID: ${{ secrets.SOL_TELEGRAM_TOPIC_ID }}
+        run: |
+          python onchain_to_telegram_sol.py --provider groq --model llama-3.1-70b-versatile --send-as message --period monthly
+      - name: Commit counters and seals
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add counters.json .sent/sol || true
+          if ! git diff --cached --quiet; then
+            git commit -m "SOL mensal: update counters & seals [skip ci]"
+            git push
+          fi
