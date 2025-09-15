@@ -5,11 +5,16 @@ on:
     - cron: "10 10 1 * *"  # dia 1, 07:10 BRT
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - uses: actions/setup-python@v5
         with:
@@ -20,7 +25,32 @@ jobs:
       - name: Sanity check secrets
         run: |
           [[ -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" ]] || { echo "Missing TELEGRAM_BOT_TOKEN"; exit 1; }
-          [[ -n "${{ secrets.TELEGRAM_CHAT_ID }}" ]] || { echo "Missing TELEGRAM_CHAT_ID"; exit 1; }
+          [[ -n "${{ secrets.TELEGRAM_CHAT_ID }}" ]]   || { echo "Missing TELEGRAM_CHAT_ID"; exit 1; }
+
+      - name: Hotfix (linha do corpo SOL)
+        run: |
+          python - <<'PY'
+          import re, pathlib
+          p = pathlib.Path("onchain_to_telegram_sol.py")
+          s = p.read_text(encoding="utf-8")
+          if "if content:" not in s or "fallback_content(data_str, numero, motivo, label)" not in s:
+              s2 = re.sub(
+                  r"(?m)^(\s*)corpo\s*=.*$",
+                  r"""\1if content:
+\1    corpo = content.strip()
+\1else:
+\1    corpo = fallback_content(data_str, numero, motivo, label)""",
+                  s, count=1
+              )
+              if s2 != s:
+                  p.write_text(s2, encoding="utf-8")
+                  print("Hotfix aplicado.")
+          else:
+              print("Bloco do corpo já está correto.")
+          PY
+
+      - name: Syntax check (SOL)
+        run: python -m py_compile onchain_to_telegram_sol.py
 
       - name: Send on-chain SOL (monthly)
         env:
