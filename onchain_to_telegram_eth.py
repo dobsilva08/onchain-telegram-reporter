@@ -37,7 +37,7 @@ Regras:
 - Evite floreios; nada de emojis aqui.
 """
 
-PROMPT_TEMPLATE = """Gere o relatório “Dados On-Chain — {data_long} — {periodo_pt} — Nº {numero}” para {ativo}.
+PROMPT_TEMPLATE = """Gere o relatório “Dados On-Chain ETH — {data_long} — {periodo_pt} — Nº {numero}” para {ativo}.
 Inclua TODAS as seções 1–7 exatamente como no enunciado do sistema.
 Caso não seja possível obter insights, entregue um esqueleto comentado com “(revisar dados manualmente)”.
 """
