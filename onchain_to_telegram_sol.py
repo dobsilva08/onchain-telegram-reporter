@@ -282,4 +282,25 @@ def main():
         motivo  = f"erro no provedor {args.provider.upper()}: {e}"
 
     titulo = f"📊 <b>Dados On-Chain — SOL — {data_str} — {label} — Nº {numero}</b>"
-    corpo  = content.strip() if co
+    # <- linha corrigida abaixo (ternário completo):
+    corpo  = content.strip() if content else fallback_content(data_str, numero, motivo, label)
+
+    # Evita erro de parse no Telegram
+    corpo_seguro = html.escape(corpo, quote=False)
+    full = f"{titulo}\n\n{corpo_seguro}"
+
+    if args.send_as in ("message","both"):
+        msgs = _chunk_message(full, limit=3900)
+        telegram_send_messages(tg_token, tg_chat, msgs, parse_mode="HTML")
+        print(f"[ok] Mensagem enviada em {len(msgs)} parte(s).")
+
+    if args.send_as in ("pdf","both"):
+        out_dir = os.path.join(os.path.dirname(__file__), "out")
+        os.makedirs(out_dir, exist_ok=True)
+        path = os.path.join(out_dir, f"Dados On-Chain — SOL — {data_str} — {label} — Nº {numero}.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(full)
+        print("[ok] Texto salvo em:", path)
+
+if __name__ == "__main__":
+    main()
