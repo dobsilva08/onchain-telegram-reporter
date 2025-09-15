@@ -260,7 +260,6 @@ def main():
     }
 
     tg_token = os.environ.get("TELEGRAM_BOT_TOKEN") or ""
-    # Para SOL: tenta SOL_TELEGRAM_CHAT_ID; se vazio, usa TELEGRAM_CHAT_ID
     tg_chat  = os.environ.get("SOL_TELEGRAM_CHAT_ID") or os.environ.get("TELEGRAM_CHAT_ID") or ""
     if args.send_as in ("message","both") and (not tg_token or not tg_chat):
         raise SystemExit("Defina TELEGRAM_BOT_TOKEN e SOL_TELEGRAM_CHAT_ID (ou TELEGRAM_CHAT_ID) para envio por mensagem.")
@@ -281,14 +280,13 @@ def main():
         content = None
         motivo  = f"erro no provedor {args.provider.upper()}: {e}"
 
-    # ----- título + corpo (sem ternário para evitar cortes em editores móveis)
+    # ----- título + corpo (sem ternário)
     titulo = f"📊 <b>Dados On-Chain — SOL — {data_str} — {label} — Nº {numero}</b>"
     if content:
         corpo = content.strip()
     else:
         corpo = fallback_content(data_str, numero, motivo, label)
 
-    # Evita erro de parse no Telegram
     corpo_seguro = html.escape(corpo, quote=False)
     full = f"{titulo}\n\n{corpo_seguro}"
 
