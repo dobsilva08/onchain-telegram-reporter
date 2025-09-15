@@ -1,4 +1,4 @@
-name: On-chain semanal
+name: On-chain BTC semanal
 
 on:
   schedule:
