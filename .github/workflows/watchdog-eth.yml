@@ -1,0 +1,36 @@
+name: Watchdog ETH — Diário
+
+on:
+  schedule:
+    - cron: "10 10 * * *"   # 07:10 BRT (depois das janelas)
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Re-run if not sealed
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ETH_TELEGRAM_CHAT_ID: ${{ secrets.ETH_TELEGRAM_CHAT_ID }}
+          ETH_TELEGRAM_TOPIC_ID: ${{ secrets.ETH_TELEGRAM_TOPIC_ID }}
+        run: |
+          python onchain_to_telegram_eth.py --provider groq --model llama-3.1-70b-versatile --send-as message --period daily
+      - name: Commit counters and seals
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add counters.json .sent/eth || true
+          if ! git diff --cached --quiet; then
+            git commit -m "ETH watchdog: update counters & seals [skip ci]"
+            git push
+          fi
