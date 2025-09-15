@@ -1,3 +1,4 @@
+# .github/workflows/onchain-eth.yml
 name: On-chain ETH — Diário
 
 on:
@@ -7,6 +8,9 @@ on:
     - cron: "45 9 * * *"   # 06:45 BRT
     - cron: "0 10 * * *"   # 07:00 BRT
   workflow_dispatch: {}
+
+permissions:
+  contents: write
 
 jobs:
   run:
@@ -23,25 +27,45 @@ jobs:
       - name: Sanity check secrets
         run: |
           [[ -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" ]] || { echo "Missing TELEGRAM_BOT_TOKEN"; exit 1; }
-          [[ -n "${{ secrets.TELEGRAM_CHAT_ID }}" ]] || { echo "Missing TELEGRAM_CHAT_ID"; exit 1; }
-          [[ -n "${{ secrets.GROQ_API_KEY }}" ]] || echo "Warn: GROQ_API_KEY empty (use outro provider ou defina o secret)"
+          [[ -n "${{ secrets.TELEGRAM_CHAT_ID }}" ]]   || { echo "Missing TELEGRAM_CHAT_ID"; exit 1; }
+          [[ -n "${{ secrets.GROQ_API_KEY }}" ]]       || echo "Warn: GROQ_API_KEY empty"
+
+      - name: Compute stamp (ETH daily) & check
+        id: gate
+        run: |
+          mkdir -p .sent
+          STAMP=".sent/done-eth-daily-$(date -u +%F)"
+          echo "stamp=$STAMP" >> $GITHUB_OUTPUT
+          if [[ -f "$STAMP" ]]; then
+            echo "skip=true"  >> $GITHUB_OUTPUT
+            echo "Already sent today (stamp: $STAMP). Skipping."
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Send on-chain ETH (daily)
+        if: steps.gate.outputs.skip != 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}   # <- essencial
-          ETH_TELEGRAM_CHAT_ID: ${{ secrets.ETH_TELEGRAM_CHAT_ID }}         # opcional
-          ETH_TELEGRAM_TOPIC_ID: ${{ secrets.ETH_TELEGRAM_TOPIC_ID }}       # opcional
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          ETH_TELEGRAM_CHAT_ID:  ${{ secrets.ETH_TELEGRAM_CHAT_ID }}
+          ETH_TELEGRAM_TOPIC_ID: ${{ secrets.ETH_TELEGRAM_TOPIC_ID }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           python onchain_to_telegram_eth.py --provider groq --model llama-3.1-70b-versatile --send-as message --period daily
 
-      - name: Commit counters
+      - name: Create stamp file
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          touch "${{ steps.gate.outputs.stamp }}"
+
+      - name: Commit counters & stamp
+        if: steps.gate.outputs.skip != 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add counters.json || true
+          git add counters.json "${{ steps.gate.outputs.stamp }}" || true
           if ! git diff --cached --quiet; then
-            git commit -m "ETH diário: update counters [skip ci]"
+            git commit -m "ETH diário: update counters & .sent [skip ci]"
             git push
           fi
