@@ -1,4 +1,4 @@
-name: On-chain mensal
+name: On-chain mensal BTC
 
 on:
   schedule:
