@@ -282,7 +282,6 @@ def main():
         motivo  = f"erro no provedor {args.provider.upper()}: {e}"
 
     titulo = f"📊 <b>Dados On-Chain — SOL — {data_str} — {label} — Nº {numero}</b>"
-    # <- linha corrigida abaixo (ternário completo):
     corpo  = content.strip() if content else fallback_content(data_str, numero, motivo, label)
 
     # Evita erro de parse no Telegram
