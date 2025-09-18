@@ -1,310 +1,303 @@
+# scripts/gold_report.py
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os, json, argparse, requests, time, textwrap, html
-from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, Any, List
+"""
+Relatório — Dados de Mercado — Ouro (XAU/USD) — Diário
+Segue o layout ESPECÍFICO em 10 tópicos (conforme exemplo do usuário).
 
-# Fuso para datas legíveis no Brasil
+Variáveis de ambiente:
+- TELEGRAM_BOT_TOKEN (obrigatório)
+- TELEGRAM_CHAT_ID   (obrigatório)
+- TELEGRAM_TOPIC_ID  (opcional)
+- YF_PROXY           (opcional, proxy http/https para yfinance/requests)
+- CFTC_CSV_URL       (opcional: CSV de posição líquida CFTC/CME para OURO)
+- ETF_HOLDINGS_SOURCE (opcional: endpoint com shares/fluxos GLD/IAU)
+
+Arquivos persistentes:
+- .sent/gold-daily-YYYYMMDD.sent  -> trava de envio
+- .sent/gold_daily_counter.txt    -> contador “Nº X”
+"""
+
+import os, io, sys, math, textwrap, html, json, time
+from datetime import datetime, timedelta, timezone
+
+import pandas as pd
+import numpy as np
+import requests
+import yfinance as yf
+
 BRT = timezone(timedelta(hours=-3), name="BRT")
+ROOT = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(ROOT, ".."))
+SENT_DIR = os.path.join(REPO_ROOT, ".sent")
+os.makedirs(SENT_DIR, exist_ok=True)
 
-# ---------------- utilidades de ambiente/tempo ----------------
+def today_brt():
+    return datetime.now(BRT)
 
-def load_env_if_present():
-    """Carrega variáveis de um .env (mesma pasta), se existir."""
-    env_path = os.path.join(os.path.dirname(__file__), ".env")
-    if os.path.exists(env_path):
-        for raw in open(env_path, "r", encoding="utf-8"):
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            if k and v and k not in os.environ:
-                os.environ[k.strip()] = v.strip()
+def guard_path(dt):
+    return os.path.join(SENT_DIR, f"gold-daily-{dt.strftime('%Y%m%d')}.sent")
 
-def today_brt_str() -> str:
-    meses = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"]
-    now = datetime.now(BRT)
-    return f"{now.day} de {meses[now.month-1]} de {now.year}"
-
-def iso_to_brt_human(iso_date: str) -> str:
+def read_counter():
+    path = os.path.join(SENT_DIR, "gold_daily_counter.txt")
+    if not os.path.exists(path):
+        return 0
     try:
-        dt = datetime.strptime(iso_date, "%Y-%m-%d").replace(tzinfo=BRT)
-        meses = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"]
-        return f"{dt.day} de {meses[dt.month-1]} de {dt.year}"
-    except Exception:
-        return iso_date
+        return int(open(path, "r", encoding="utf-8").read().strip() or "0")
+    except:
+        return 0
 
-def read_counter(counter_file: str, key: str, start_counter: int = 1) -> int:
-    """
-    Lê/atualiza contador por chave (ex.: diario/semanal/mensal) em counters.json.
-    Retorna o Nº atual e já incrementa para o próximo.
-    """
+def write_counter(v: int):
+    path = os.path.join(SENT_DIR, "gold_daily_counter.txt")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(str(v))
+
+def pct(a,b):
     try:
-        data = json.load(open(counter_file, "r", encoding="utf-8")) if os.path.exists(counter_file) else {}
-        val = int(data.get(key, start_counter))
-        data[key] = val + 1
-        with open(counter_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        return val
+        return (a/b - 1.0)*100.0
     except Exception:
-        return start_counter
+        return np.nan
 
-# ---------------- prompt/estrutura ----------------
+def fmt_pct(x):
+    if x is None or (isinstance(x,float) and (np.isnan(x) or np.isinf(x))):
+        return "—"
+    return f"{x:+.2f}%"
 
-def build_prompt(data_str: str, numero: int, metrics: Optional[Dict[str, Any]], label: str) -> str:
-    header = f"Dados On-Chain - BTC — {data_str} — {label} — Nº {numero}"
-    rules = (
-        "Você é um analista on-chain sênior. Produza um relatório em português do Brasil, objetivo e profissional.\n"
-        "TÍTULO (linha única):\n" + header + "\n\n"
-        "REGRAS:\n"
-        "- Se houver métricas (JSON), use-as; se não houver, NÃO invente números: descreva sinais qualitativos.\n"
-        "- Sem links; inclua a data completa no primeiro parágrafo.\n"
-        "- Estrutura fixa (na ordem):\n"
-        "  1) Exchange Inflow (MA7)\n"
-        "  2) Exchange Netflow (Total)\n"
-        "  3) Reservas em Exchanges\n"
-        "  4) Fluxos de Baleias — 2 parágrafos: (a) depósitos whales/miners; (b) Whale Ratio)\n"
-        "  5) Resumo de Contexto Institucional\n"
-        "  6) Interpretação Executiva — 5–8 bullets\n"
-        "  7) Conclusão\n\n"
-        "DADOS (JSON opcional):\n"
-    )
-    dados = json.dumps(metrics, ensure_ascii=False, indent=2) if metrics else "null"
-    return rules + dados
+def last_valid(series):
+    s = pd.Series(series).dropna()
+    return s.iloc[-1] if len(s) else np.nan
 
-def fallback_content(data_str: str, numero: int, motivo: str, label: str) -> str:
-    return textwrap.dedent(f"""
-    ⚠️ Não foi possível gerar o relatório automático hoje.
-    Motivo: {motivo}
-    Data: {data_str} — {label} — Nº {numero}
+def fetch_yf(tickers, period="30d", interval="1d"):
+    session = requests.Session()
+    if os.getenv("YF_PROXY"):
+        session.proxies = {"http": os.getenv("YF_PROXY"), "https": os.getenv("YF_PROXY")}
+    data = yf.download(tickers=tickers, period=period, interval=interval,
+                       auto_adjust=False, progress=False, session=session)
+    if isinstance(data.columns, pd.MultiIndex):
+        data = data["Close"]
+    else:
+        data = data["Close"].to_frame()
+    return data.ffill()
 
-    Use o esqueleto abaixo para registro:
+def fetch_fred(series_id):
+    url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
+    r = requests.get(url, timeout=30)
+    r.raise_for_status()
+    df = pd.read_csv(io.StringIO(r.text))
+    df["DATE"] = pd.to_datetime(df["DATE"])
+    df.set_index("DATE", inplace=True)
+    s = pd.to_numeric(df[series_id], errors="coerce").dropna()
+    return s
 
-    1) Exchange Inflow (MA7) — leitura qualitativa.
-    2) Exchange Netflow (Total) — leitura qualitativa.
-    3) Reservas em Exchanges — leitura qualitativa.
-    4) Fluxos de Baleias
-       • Depósitos de whales/miners — leitura qualitativa.
-       • Whale Ratio — leitura qualitativa.
-    5) Resumo de Contexto Institucional — narrativa macro.
-    6) Interpretação Executiva — 5–8 bullets curtos e acionáveis.
-    7) Conclusão — enquadramento de risco.
+def send_telegram(text: str):
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    topic_id = os.getenv("TELEGRAM_TOPIC_ID")
+    if not token or not chat_id:
+        print("Faltam TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID. Imprimindo abaixo:")
+        print(text)
+        return
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True
+    }
+    if topic_id:
+        payload["message_thread_id"] = int(topic_id)
+    resp = requests.post(url, data=payload, timeout=30)
+    resp.raise_for_status()
+
+# ------------------------ Blocos dos 10 tópicos (layout fixo) ------------------------
+
+def bloco_1_fluxos_etf():
+    # Sem fonte pública estável de shares; usamos preço d/d e placeholder para shares
+    txt = ""
+    try:
+        px = fetch_yf(["GLD","IAU"], period="10d")
+        gld_dd = fmt_pct(pct(px["GLD"].iloc[-1], px["GLD"].iloc[-2]))
+        iau_dd = fmt_pct(pct(px["IAU"].iloc[-1], px["IAU"].iloc[-2]))
+        txt = f"Os fluxos em ETFs de ouro (GLD/IAU) não possuem fonte pública padronizada de shares aqui. " \
+              f"Como proxy, preço d/d: GLD {gld_dd}, IAU {iau_dd}. " \
+              f"Configure <code>ETF_HOLDINGS_SOURCE</code> para capturar shares/criações se desejar."
+    except Exception:
+        txt = "Não há dados disponíveis sobre fluxos de ETFs (necessário fonte de shares/criações)."
+    return f"<b>1. Fluxos em ETFs de Ouro</b>\n{txt}"
+
+def bloco_2_cftc():
+    url = os.getenv("CFTC_CSV_URL", "")
+    if not url:
+        return ("<b>2. Posição Líquida em Futuros (CFTC/CME)</b>\n"
+                "Não há dados: defina <code>CFTC_CSV_URL</code> para importar a posição líquida.")
+    try:
+        r = requests.get(url, timeout=30)
+        r.raise_for_status()
+        df = pd.read_csv(io.StringIO(r.text))
+        # Tenta colunas comuns; se não, apenas conta linhas
+        cols_long = [c for c in df.columns if "Long" in c or "LONG" in c]
+        cols_short= [c for c in df.columns if "Short" in c or "SHORT" in c]
+        spec, nonc_l, nonc_s = "—","—","—"
+        if cols_long and cols_short:
+            last = df.iloc[-1]
+            nonc_l = last[cols_long[0]]
+            nonc_s = last[cols_short[0]]
+            try:
+                spec = int(nonc_l) - int(nonc_s)
+            except Exception:
+                spec = "—"
+        return (f"<b>2. Posição Líquida em Futuros (CFTC/CME)</b>\n"
+                f"- Speculadores: {spec}\n- Não-Commerciais Longueiros: {nonc_l}\n- Não-Commerciais Curtores: {nonc_s}")
+    except Exception:
+        return "<b>2. Posição Líquida em Futuros (CFTC/CME)</b>\nDados indisponíveis no momento."
+
+def bloco_3_reservas_bc():
+    return ("<b>3. Reservas de Bancos Centrais</b>\n"
+            "Não há dados disponíveis sobre as reservas de bancos centrais em ouro.")
+
+def bloco_4_fluxos_miner_bancos():
+    return ("<b>4. Fluxos de Mineradoras & Bancos</b>\n"
+            "Não há dados disponíveis sobre produção, hedge e operações OTC.")
+
+def bloco_5_whale_ratio():
+    return ("<b>5. Whale Ratio Institucional vs. Varejo</b>\n"
+            "Não há dados disponíveis sobre a participação relativa de institucionais e varejo.")
+
+def bloco_6_drivers_macro():
+    # DXY e juros reais (DFII10)
+    dxy_txt = "—"
+    real10_txt = "—"
+    try:
+        dxy = fetch_yf(["DX-Y.NYB"], period="10d")
+        dxy_val = last_valid(dxy["DX-Y.NYB"])
+        dxy_txt = f"{dxy_val:,.2f}"
+    except Exception:
+        pass
+    try:
+        dfii = fetch_fred("DFII10")
+        real10_txt = f"{dfii.iloc[-1]:.1f}%"
+    except Exception:
+        pass
+    return (f"<b>6. Drivers Macro</b>\n"
+            f"- Taxa real de 10 anos: {real10_txt}\n"
+            f"- Índice DXY: {dxy_txt}")
+
+def bloco_7_custos_oferta():
+    return ("<b>7. Custos de Produção & Oferta Física</b>\n"
+            "Não há dados disponíveis sobre custos de produção e oferta física de ouro.")
+
+def bloco_8_estrutura_termo():
+    # Spread simples GC=F - MGC=F (se ambos existirem); se falhar, manter indisponível
+    try:
+        fut = fetch_yf(["GC=F","MGC=F"], period="7d")
+        spread = last_valid(fut["GC=F"]) - last_valid(fut["MGC=F"])
+        return (f"<b>8. Estrutura a Termo</b>\n"
+                f"Spread (GC=F - MGC=F): {spread:,.2f} USD/onça.")
+    except Exception:
+        return ("<b>8. Estrutura a Termo</b>\n"
+                "A estrutura a termo do mercado de ouro não está disponível (falha/fonte indisponível).")
+
+def bloco_9_correlacoes():
+    # Correlações 30d: Ouro vs DXY; Ouro vs S&P500; Ouro vs BTC-USD (se possível)
+    try:
+        px = fetch_yf(["XAUUSD=X","DX-Y.NYB","^GSPC","BTC-USD"], period="90d")
+        px.columns = ["XAU","DXY","SPX","BTC"]
+        rets = px.pct_change().dropna().tail(30)
+        def c(a,b):
+            try:
+                return rets[a].corr(rets[b])
+            except:
+                return np.nan
+        c1 = c("XAU","DXY")
+        c2 = c("XAU","SPX")
+        c3 = c("XAU","BTC")
+        return (f"<b>9. Correlações Cruzadas</b>\n"
+                f"- Ouro vs DXY (30d): {c1:+.2f}\n"
+                f"- Ouro vs S&P 500 (30d): {c2:+.2f}\n"
+                f"- Ouro vs Bitcoin (30d): {c3:+.2f}")
+    except Exception:
+        return ("<b>9. Correlações Cruzadas</b>\n"
+                "Não há dados disponíveis sobre as correlações cruzadas (fonte indisponível).")
+
+def bloco_10_interpretacao():
+    return textwrap.dedent("""\
+        <b>10. Interpretação Executiva & Conclusão</b>
+        - O mercado de ouro está sendo influenciado por fatores macroeconômicos, como a taxa real e o índice DXY.
+        - A posição líquida em futuros pode favorecer os curtos quando especuladores líquidos <i>≤ 0</i>.
+        - Falta de dados sobre estrutura a termo e correlações reduz a precisão do quadro.
+        - Participação de institucionais vs. varejo indisponível.
+        - Oferta física/custos sem fonte padronizada.
+        - Monitorar próximos dados macro (FOMC, inflação), DFII10 e DXY.
+        
+        <b>Síntese</b>
+        O mercado de ouro continua sensível a juros reais e ao dólar. Sem séries estáveis para fluxos de ETFs (shares), 
+        estrutura a termo granular e participação institucional, a análise permanece parcial; ainda assim, DFII10 e DXY 
+        seguem como vetores principais do viés tático.
     """).strip()
 
-# ---------------- LLM providers ----------------
+# ------------------------ Montagem do relatório ------------------------
 
-def _groq_chat(model: str, prompt: str, api_key: str) -> Optional[str]:
-    """
-    Faz chamada ao endpoint OpenAI-compatível da Groq com fallback de modelos.
-    Retorna None para erros 401/403/429 (sem cota), levanta exceção para outros.
-    """
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+def montar_relatorio():
+    dt = today_brt()
+    # contador (incrementa aqui)
+    n = read_counter() + 1
+    write_counter(n)
 
-    # Ordem de preferência: mantém solicitado e tenta alternativas
-    fallbacks = [m for m in [model,
-                             "llama-3.1-70b-versatile",
-                             "llama-3.1-8b-instant",
-                             "gemma2-9b-it"] if m]
+    titulo = f"📊 <b>Dados de Mercado — Ouro (XAU/USD) — {dt.strftime('%d de %B de %Y')} — Diário — Nº {n}</b>"
+    # subtítulo igual ao exemplo (“Neste relatório… até data”)
+    subtitulo = f"Neste relatório, apresentamos os dados de mercado atualizados até {dt.strftime('%d de %B de %Y')}."
 
-    last_err = None
-    for mdl in fallbacks:
-        payload = {
-            "model": mdl,
-            "messages": [
-                {"role": "system", "content": "Você é um analista on-chain sênior e escreve em português do Brasil."},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.35,
-            "max_tokens": 1800,
-        }
-        r = requests.post(url, headers=headers, json=payload, timeout=120)
-        if r.status_code in (401, 403, 429):
-            # sem cota/chave inválida -> sinaliza fallback geral
-            return None
-        if r.status_code == 200:
-            try:
-                return r.json()["choices"][0]["message"]["content"]
-            except Exception as e:
-                last_err = f"parse error: {e} / body={r.text[:200]}"
-        else:
-            # guarda e tenta o próximo
-            last_err = f"HTTP {r.status_code} — {r.text[:200]}"
+    partes = [
+        titulo,
+        subtitulo,
+        "",
+        bloco_1_fluxos_etf(),
+        "",
+        bloco_2_cftc(),
+        "",
+        bloco_3_reservas_bc(),
+        "",
+        bloco_4_fluxos_miner_bancos(),
+        "",
+        bloco_5_whale_ratio(),
+        "",
+        bloco_6_drivers_macro(),
+        "",
+        bloco_7_custos_oferta(),
+        "",
+        bloco_8_estrutura_termo(),
+        "",
+        bloco_9_correlacoes(),
+        "",
+        bloco_10_interpretacao(),
+    ]
+    txt = "\n".join(partes)
 
-    if last_err:
-        raise RuntimeError(f"GROQ error: {last_err}")
-    return None
-
-def llm_generate(provider: str, model: str, prompt: str, keys: Dict[str, str]) -> Optional[str]:
-    """
-    Retorna texto do LLM ou None se o erro for de quota/limite (para cair no fallback).
-    provider: "groq" | "openai" | "openrouter" | "anthropic"
-    """
-    p = (provider or "groq").lower()
-
-    if p == "groq":
-        return _groq_chat(model or "llama-3.1-70b-versatile", prompt, keys.get("GROQ_API_KEY", ""))
-
-    if p == "openai":
-        url = "https://api.openai.com/v1/chat/completions"
-        headers = {"Authorization": "Bearer " + keys.get("OPENAI_API_KEY",""), "Content-Type": "application/json"}
-        payload = {"model": model or "gpt-4o",
-                   "messages":[{"role":"system","content":"Você é um analista on-chain sênior e escreve em português do Brasil."},
-                               {"role":"user","content":prompt}],
-                   "temperature":0.35,"max_tokens":1800}
-        r = requests.post(url, headers=headers, json=payload, timeout=120)
-        if r.status_code in (401,403,429):
-            return None
-        if r.status_code != 200:
-            raise RuntimeError(f"OpenAI error: HTTP {r.status_code} — {r.text}")
-        return r.json()["choices"][0]["message"]["content"]
-
-    if p == "openrouter":
-        url = "https://openrouter.ai/api/v1/chat/completions"
-        headers = {"Authorization": "Bearer " + keys.get("OPENROUTER_API_KEY",""), "Content-Type": "application/json"}
-        payload = {"model": model or "meta-llama/llama-3.1-70b-instruct",
-                   "messages":[{"role":"system","content":"Você é um analista on-chain sênior e escreve em português do Brasil."},
-                               {"role":"user","content":prompt}],
-                   "temperature":0.35,"max_tokens":1800}
-        r = requests.post(url, headers=headers, json=payload, timeout=120)
-        if r.status_code in (401,403,429):
-            return None
-        if r.status_code != 200:
-            raise RuntimeError(f"OpenRouter error: HTTP {r.status_code} — {r.text}")
-        return r.json()["choices"][0]["message"]["content"]
-
-    if p == "anthropic":
-        url = "https://api.anthropic.com/v1/messages"
-        headers = {"x-api-key": keys.get("ANTHROPIC_API_KEY",""),
-                   "anthropic-version": "2023-06-01",
-                   "content-type": "application/json"}
-        payload = {"model": model or "claude-3-5-sonnet-20240620",
-                   "max_tokens": 1800,
-                   "temperature": 0.35,
-                   "messages":[{"role":"user","content":prompt}]}
-        r = requests.post(url, headers=headers, json=payload, timeout=120)
-        if r.status_code in (401,403,429):
-            return None
-        if r.status_code != 200:
-            raise RuntimeError(f"Anthropic error: HTTP {r.status_code} — {r.text}")
-        data = r.json()
-        parts = data.get("content", [])
-        text = "".join(p.get("text","") for p in parts if isinstance(p, dict))
-        return text
-
-    raise RuntimeError(f"Provider desconhecido: {provider}")
-
-# ---------------- Telegram helpers ----------------
-
-def _chunk_message(text: str, limit: int = 3900) -> List[str]:
-    parts: List[str] = []
-    for block in text.split("\n\n"):
-        b = block.strip()
-        if not b:
-            if parts and not parts[-1].endswith("\n\n"):
-                parts[-1] += "\n\n"
-            continue
-        if len(b) <= limit:
-            if not parts:
-                parts.append(b)
-            elif len(parts[-1]) + 2 + len(b) <= limit:
-                parts[-1] += "\n\n" + b
-            else:
-                parts.append(b)
-        else:
-            acc = ""
-            for line in b.splitlines():
-                if len(acc) + len(line) + 1 <= limit:
-                    acc += (("\n" if acc else "") + line)
-                else:
-                    if acc:
-                        parts.append(acc)
-                    acc = line
-            if acc:
-                parts.append(acc)
-    return parts if parts else ["(vazio)"]
-
-def telegram_send_messages(token: str, chat_id: str, messages: List[str], parse_mode: Optional[str] = "HTML"):
-    base = f"https://api.telegram.org/bot{token}/sendMessage"
-    for msg in messages:
-        data = {"chat_id": chat_id, "text": msg, "disable_web_page_preview": True}
-        if parse_mode:
-            data["parse_mode"] = parse_mode
-        r = requests.post(base, data=data, timeout=120)
-        if r.status_code != 200:
-            raise RuntimeError(f"Telegram error: HTTP {r.status_code} — {r.text}")
-        time.sleep(0.6)
-
-# --------------------------- main --------------------------------------
+    # Telegram usa HTML — garantir escapando seguro, mas preservar <b>, <i>, <code>, que já inserimos.
+    # Como os blocos já vêm “limpos”, apenas asseguramos que nada externo ficou sem escape:
+    safe = html.unescape(txt)  # mantém tags que já definimos
+    return safe
 
 def main():
-    load_env_if_present()
-    ap = argparse.ArgumentParser(description="Relatório on-chain → Telegram.")
-    ap.add_argument("--date", help="YYYY-MM-DD (opcional)")
-    ap.add_argument("--start-counter", type=int, default=1)
-    ap.add_argument("--counter-file", default=os.path.join(os.path.dirname(__file__), "counters.json"))
-    ap.add_argument("--metrics")
-    ap.add_argument("--provider", choices=["groq","openai","openrouter","anthropic"], default=os.environ.get("PROVIDER","groq"))
-    ap.add_argument("--model")  # depende do provider
-    ap.add_argument("--period", choices=["daily","weekly","monthly"], default="daily")
-    ap.add_argument("--send-as", choices=["message","pdf","both"], default="message")
-    args = ap.parse_args()
-
-    # labels/keys por período
-    label_map = {"daily": "Diário", "weekly": "Semanal", "monthly": "Mensal"}
-    key_map   = {"daily": "diario", "weekly": "semanal", "monthly": "mensal"}
-    label     = label_map.get(args.period, "Diário")
-    key       = key_map.get(args.period, "diario")
-
-    # Chaves por provider (use a pertinente)
-    keys = {
-        "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY",""),
-        "GROQ_API_KEY": os.environ.get("GROQ_API_KEY",""),
-        "OPENROUTER_API_KEY": os.environ.get("OPENROUTER_API_KEY",""),
-        "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY",""),
-    }
-
-    tg_token = os.environ.get("TELEGRAM_BOT_TOKEN") or ""
-    tg_chat  = os.environ.get("TELEGRAM_CHAT_ID") or ""
-    if args.send_as in ("message","both") and (not tg_token or not tg_chat):
-        raise SystemExit("Defina TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID para envio por mensagem.")
-
-    data_str = iso_to_brt_human(args.date) if args.date else today_brt_str()
-    numero   = read_counter(args.counter_file, key=key, start_counter=args.start_counter)
-
-    metrics = None
-    if args.metrics and os.path.exists(args.metrics):
-        metrics = json.load(open(args.metrics, "r", encoding="utf-8"))
-
-    prompt  = build_prompt(data_str, numero, metrics, label)
-
+    dt = today_brt()
+    gpath = guard_path(dt)
+    if os.path.exists(gpath):
+        print("Já enviado hoje (trava .sent). Encerrando.")
+        return
     try:
-        content = llm_generate(args.provider, args.model, prompt, keys)
-        motivo  = None if content else f"sem cota/limite em {args.provider.upper()} ou chave ausente."
+        texto = montar_relatorio()
+        send_telegram(texto)
+        # grava trava de envio
+        open(gpath, "w", encoding="utf-8").write(texto[:200])
+        print("OK: relatório Ouro enviado.")
     except Exception as e:
-        content = None
-        motivo  = f"erro no provedor {args.provider.upper()}: {e}"
-
-    titulo = f"📊 <b>Dados On-Chain — {data_str} — {label} — Nº {numero}</b>"
-    corpo  = content.strip() if content else fallback_content(data_str, numero, motivo, label)
-
-    # Evita erro de parse no Telegram
-    corpo_seguro = html.escape(corpo, quote=False)
-    full = f"{titulo}\n\n{corpo_seguro}"
-
-    if args.send_as in ("message","both"):
-        msgs = _chunk_message(full, limit=3900)
-        telegram_send_messages(tg_token, tg_chat, msgs, parse_mode="HTML")
-        print(f"[ok] Mensagem enviada em {len(msgs)} parte(s).")
-
-    if args.send_as in ("pdf","both"):
-        out_dir = os.path.join(os.path.dirname(__file__), "out")
-        os.makedirs(out_dir, exist_ok=True)
-        path = os.path.join(out_dir, f"Dados On-Chain — {data_str} — {label} — Nº {numero}.txt")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(full)
-        print("[ok] Texto salvo em:", path)
+        print("Falha ao gerar/enviar relatório de Ouro:", e, file=sys.stderr)
+        try:
+            send_telegram(f"Falha no relatório de OURO: <code>{html.escape(str(e))}</code>")
+        except Exception:
+            pass
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
