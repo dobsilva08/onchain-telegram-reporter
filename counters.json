@@ -2,5 +2,6 @@
   "diario": 6,
   "eth_diario": 9,
   "sol_diario": 10,
-  "sol_semanal": 2
+  "sol_semanal": 2,
+  "eth_semanal": 2
 }
