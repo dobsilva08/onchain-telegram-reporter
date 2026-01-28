@@ -1,0 +1,24 @@
+{
+  "exchange_inflow": {
+    "ma7": 3200,
+    "avg_90d": 14500,
+    "percentil": 8
+  },
+  "exchange_netflow": {
+    "value": -4850
+  },
+  "exchange_reserve": {
+    "current": 1720000,
+    "avg_180d": 2100000
+  },
+  "whale_inflow": {
+    "value_24h": 1340,
+    "avg_30d": 5200
+  },
+  "whale_ratio": {
+    "value": 0.54
+  },
+  "institutional": {
+    "etf_flow": 320000000
+  }
+}
