@@ -1,9 +1,5 @@
 {
-  "diario": 6,
-  "eth_diario": 138,
-  "sol_diario": 139,
-  "sol_semanal": 20,
-  "eth_semanal": 20,
-  "eth_mensal": 5,
-  "sol_mensal": 5
+  "btc_diario": 1,
+  "btc_semanal": 1,
+  "btc_mensal": 1
 }
