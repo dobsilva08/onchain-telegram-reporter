@@ -1,80 +1,105 @@
 # text_engine.py
-# Interpretação determinística on-chain — FASE 4
+# Motor determinístico on-chain (FASE 5/6)
+# 100% sem IA, blindado contra zeros
 
-# =========================
-# TEXTOS INDIVIDUAIS
-# =========================
+# ==========================================================
+# INTERPRETAÇÕES
+# ==========================================================
 
-def inflow_text(ma7, percentil):
-    if percentil <= 20:
-        return f"O Exchange Inflow (MA7) permanece baixo, em {ma7:,} BTC, indicando baixa pressão vendedora.", 2
-    if percentil <= 60:
-        return f"O Exchange Inflow (MA7) encontra-se em nível intermediário, em {ma7:,} BTC.", 0
-    return f"O Exchange Inflow (MA7) apresenta elevação, em {ma7:,} BTC, sugerindo aumento de pressão vendedora.", -2
-
-
-def netflow_text(value):
-    if value < 0:
-        return f"O Exchange Netflow registra saída líquida de aproximadamente {abs(value):,} BTC das exchanges.", 1
-    if value > 0:
-        return f"O Exchange Netflow indica entrada líquida de aproximadamente {value:,} BTC nas exchanges.", -1
-    return "O Exchange Netflow permanece próximo do equilíbrio.", 0
-
-
-def reserve_text(current, avg):
-    if avg == 0:
-        return f"As reservas em exchanges estão estimadas em {current:,} BTC.", 0
-
-    delta = (current - avg) / avg * 100
-    if delta < -5:
+def interpret_exchange_inflow(ma7, avg_90d, percentil):
+    if avg_90d == 0:
         return (
-            f"As reservas em exchanges seguem em {current:,} BTC, abaixo da média histórica, indicando redução de oferta.",
-            2
-        )
-    return f"As reservas em exchanges permanecem estáveis, em torno de {current:,} BTC.", 0
+            "O Exchange Inflow (MA7) encontra-se indisponível para comparação histórica."
+        ), "neutro", 0
+
+    if percentil <= 30:
+        return (
+            f"O Exchange Inflow (MA7) encontra-se em nível intermediário, em {ma7:,} BTC."
+        ), "neutro", 0
+
+    return (
+        f"O Exchange Inflow (MA7) apresenta elevação relevante, em {ma7:,} BTC."
+    ), "baixista", -1
 
 
-def whale_text(inflow, avg, ratio):
-    score = 0
+def interpret_exchange_netflow(value):
+    if value < 0:
+        return (
+            f"O Exchange Netflow registra saída líquida de aproximadamente {abs(value):,} BTC das exchanges."
+        ), "altista", 1
 
-    if inflow > avg:
-        t1 = f"Observa-se aumento nos depósitos de baleias, com {inflow:,} BTC nas últimas 24h."
-        score -= 1
-    else:
-        t1 = f"Os depósitos de baleias somaram cerca de {inflow:,} BTC nas últimas 24h."
-        score += 1
+    if value > 0:
+        return (
+            f"O Exchange Netflow registra entrada líquida de aproximadamente {value:,} BTC nas exchanges."
+        ), "baixista", -1
 
-    if ratio < 0.6:
-        t2 = f"O Whale Ratio está em {ratio:.2f}, indicando baixa dominância de grandes participantes."
-        score += 1
-    elif ratio < 0.85:
-        t2 = f"O Whale Ratio encontra-se em {ratio:.2f}, em faixa intermediária."
-    else:
-        t2 = f"O Whale Ratio atingiu {ratio:.2f}, nível elevado historicamente."
-        score -= 2
-
-    return f"{t1} {t2}", score
+    return (
+        "O Exchange Netflow permanece próximo do equilíbrio."
+    ), "neutro", 0
 
 
-# =========================
+def interpret_exchange_reserve(current, avg_180d):
+    if avg_180d == 0:
+        return (
+            f"As reservas em exchanges seguem em {current:,} BTC."
+        ), "neutro", 0
+
+    if current < avg_180d:
+        return (
+            f"As reservas em exchanges seguem em {current:,} BTC, abaixo da média histórica, indicando redução de oferta."
+        ), "altista", 2
+
+    return (
+        f"As reservas em exchanges encontram-se estáveis, em {current:,} BTC."
+    ), "neutro", 0
+
+
+def interpret_whale_inflow(value_24h, avg_30d):
+    if avg_30d == 0:
+        return (
+            f"Os depósitos de baleias somaram cerca de {value_24h:,} BTC nas últimas 24h."
+        ), "neutro", 0
+
+    return (
+        f"Os depósitos de baleias somaram cerca de {value_24h:,} BTC nas últimas 24h."
+    ), "neutro", 0
+
+
+def interpret_whale_ratio(value):
+    if value == 0:
+        return (
+            "O Whale Ratio não pôde ser estimado de forma confiável."
+        ), "neutro", 0
+
+    if value < 0.65:
+        return (
+            f"O Whale Ratio encontra-se em {value:.2f}, em faixa intermediária."
+        ), "neutro", 0
+
+    return (
+        f"O Whale Ratio atingiu {value:.2f}, nível elevado historicamente."
+    ), "baixista", -1
+
+
+# ==========================================================
 # AGREGAÇÃO
-# =========================
+# ==========================================================
 
 def compute_score(scores):
+    return max(0, min(100, 50 + sum(scores) * 10))
+
+
+def aggregate_bias(scores):
     total = sum(scores)
-    score = 50 + total * 10
-    return max(0, min(100, score))
+
+    if total >= 2:
+        return "Altista", "Moderada"
+    if total <= -2:
+        return "Baixista", "Moderada"
+    return "Neutro", "Fraca"
 
 
-def classify_bias(score):
-    if score >= 65:
-        return "Altista"
-    if score <= 35:
-        return "Baixista"
-    return "Neutro"
-
-
-def recommendation(score):
+def classify_position(score):
     if score >= 70:
         return "Acumular"
     if score >= 50:
