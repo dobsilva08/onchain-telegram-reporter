@@ -1,28 +1,50 @@
-name: Telegram Test Phase 1
+name: On-Chain BTC Reporter
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "15 12 * * *"   # ajuste se quiser
 
 jobs:
-  test-phase-1:
+  run-onchain:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install dependencies
         run: pip install requests
 
-      - name: Collect metrics
+      - name: Collect on-chain data
         run: python collector.py
 
-      - name: Send report
+      - name: Generate report and alerts
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python onchain_to_telegram.py
+
+      # ===============================
+      # 🔒 PERSISTÊNCIA DO HISTÓRICO
+      # ===============================
+
+      - name: Commit history.json
+        run: |
+          if [ -f history.json ]; then
+            git config user.name "onchain-bot"
+            git config user.email "onchain-bot@users.noreply.github.com"
+            git add history.json
+            git diff --cached --quiet || git commit -m "Update on-chain history [auto]"
+            git push
+          else
+            echo "history.json não encontrado, nada para commitar."
+          fi
 
