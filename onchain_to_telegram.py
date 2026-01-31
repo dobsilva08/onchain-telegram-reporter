@@ -1,7 +1,7 @@
 # onchain_to_telegram.py
 # ==========================================================
-# Relatório On-Chain BTC — FASE 6.2 (Opção C)
-# Percentual vs média histórica local
+# Relatório On-Chain BTC — FASE 6.3.1
+# Percentual estrutural em Reservas (180d)
 # ==========================================================
 
 import json
@@ -33,12 +33,19 @@ CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 BRT = timezone(timedelta(hours=-3))
 
 # ----------------------------------------------------------
-# Utilidades de histórico
+# Histórico
 # ----------------------------------------------------------
 
 def load_history():
     if not os.path.exists(HISTORY_FILE):
-        return {"exchange_netflow": [], "exchange_inflow": [], "whale_inflow": []}
+        return {
+            "exchange_netflow": [],
+            "exchange_inflow": [],
+            "exchange_reserve": [],
+            "whale_inflow": [],
+            "miner_inflow": [],
+            "whale_ratio": []
+        }
     with open(HISTORY_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -46,7 +53,7 @@ def save_history(history):
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
-def update_history(history, key, value, max_len=30):
+def update_history(history, key, value, max_len=200):
     history[key].append(value)
     history[key] = history[key][-max_len:]
 
@@ -90,7 +97,9 @@ def main():
 
     inflow = metrics["exchange_inflow"]["ma7"]
     netflow = metrics["exchange_netflow"]["value"]
+    reserve_current = metrics["exchange_reserve"]["current"]
     whale_inflow = metrics["whale_inflow"]["value_24h"]
+    whale_ratio_val = metrics["whale_ratio"]["value"]
 
     # -----------------------------
     # Atualiza histórico
@@ -98,7 +107,9 @@ def main():
 
     update_history(history, "exchange_inflow", inflow)
     update_history(history, "exchange_netflow", netflow)
+    update_history(history, "exchange_reserve", reserve_current)
     update_history(history, "whale_inflow", whale_inflow)
+    update_history(history, "whale_ratio", whale_ratio_val)
 
     save_history(history)
 
@@ -108,10 +119,12 @@ def main():
 
     avg_inflow_14d = avg_last(history["exchange_inflow"], 14)
     avg_netflow_7d = avg_last(history["exchange_netflow"], 7)
+    avg_reserve_180d = avg_last(history["exchange_reserve"], 180)
     avg_whale_7d = avg_last(history["whale_inflow"], 7)
 
     pct_inflow = pct_vs_avg(inflow, avg_inflow_14d)
     pct_netflow = pct_vs_avg(netflow, avg_netflow_7d)
+    pct_reserve = pct_vs_avg(reserve_current, avg_reserve_180d)
     pct_whale = pct_vs_avg(whale_inflow, avg_whale_7d)
 
     # -----------------------------
@@ -125,8 +138,9 @@ def main():
     )
 
     t2, _, s2 = interpret_exchange_netflow(netflow)
+
     t3, _, s3 = interpret_exchange_reserve(
-        metrics["exchange_reserve"]["current"],
+        reserve_current,
         metrics["exchange_reserve"]["avg_180d"]
     )
 
@@ -135,9 +149,7 @@ def main():
         metrics["whale_inflow"]["avg_30d"]
     )
 
-    t4b, _, s4b = interpret_whale_ratio(
-        metrics["whale_ratio"]["value"]
-    )
+    t4b, _, s4b = interpret_whale_ratio(whale_ratio_val)
 
     scores = [s1, s2, s3, s4a, s4b]
 
@@ -174,6 +186,7 @@ _{pct_text(pct_netflow, 7)}_
 
 *3️⃣ Reservas em Exchanges*
 {t3}
+_{pct_text(pct_reserve, 180)}_
 
 *4️⃣ Fluxos de Baleias*
 {t4a}
