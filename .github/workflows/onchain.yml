@@ -5,39 +5,26 @@ on:
   schedule:
     - cron: "15 9 * * *"   # 06:15 BRT (UTC+3)
 
-  # Execução manual pelo GitHub
-  workflow_dispatch:
-
+ 
 jobs:
   run-onchain:
     runs-on: ubuntu-latest
 
     steps:
-      # ================= CHECKOUT =================
-      - name: Checkout do repositório
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # ================= PYTHON =================
-      - name: Configurar Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # ================= DEPENDÊNCIAS =================
-      - name: Instalar dependências
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install requests
 
-      # ================= COLETA =================
-      - name: Coletar dados on-chain
-        run: |
-          python collector.py
+      - name: Collect on-chain data
+        run: python collector.py
 
-      # ================= RELATÓRIO =================
-      - name: Gerar e enviar relatório
+      - name: Generate and send report
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          python onchain_to_telegram.py
+        run: python onchain_to_telegram.py
