@@ -1,11 +1,7 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import os
 import json
-import time
 import requests
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 
 from text_engine import (
     interpret_exchange_inflow,
@@ -20,160 +16,118 @@ from text_engine import (
     institutional_block
 )
 
-from alerts_engine import check_signal_and_alert
-
 # ==========================================================
-# CONFIGURAÇÕES GERAIS
+# CONFIG TELEGRAM
 # ==========================================================
 
-BRT = timezone(timedelta(hours=-3))
-METRICS_FILE = "metrics.json"
-COUNTERS_FILE = "counters.json"
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+
+print("DEBUG TELEGRAM")
+print("BOT TOKEN EXISTS:", bool(BOT_TOKEN))
+print("CHAT ID:", CHAT_ID)
+
+if not BOT_TOKEN or not CHAT_ID:
+    raise SystemExit("❌ Variáveis de ambiente do Telegram ausentes.")
 
 # ==========================================================
-# FUNÇÕES AUXILIARES
+# CARREGA MÉTRICAS
 # ==========================================================
 
-def today_brt_str():
-    meses = [
-        "janeiro","fevereiro","março","abril","maio","junho",
-        "julho","agosto","setembro","outubro","novembro","dezembro"
-    ]
-    now = datetime.now(BRT)
-    return f"{now.day} de {meses[now.month-1]} de {now.year}"
-
-def read_counter(file, key):
-    data = json.load(open(file, "r", encoding="utf-8")) if os.path.exists(file) else {}
-    val = int(data.get(key, 1))
-    data[key] = val + 1
-    with open(file, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    return val
-
-def chunk(text, limit=3900):
-    parts = []
-    acc = ""
-    for line in text.split("\n"):
-        if len(acc) + len(line) + 1 <= limit:
-            acc += line + "\n"
-        else:
-            parts.append(acc.strip())
-            acc = line + "\n"
-    if acc.strip():
-        parts.append(acc.strip())
-    return parts
-
-def telegram_send(token, chat_id, messages):
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    for msg in messages:
-        r = requests.post(
-            url,
-            data={
-                "chat_id": chat_id,
-                "text": msg,
-                "disable_web_page_preview": True
-            },
-            timeout=30
-        )
-        if r.status_code != 200:
-            print("Erro Telegram:", r.text)
-        time.sleep(0.6)
+with open("metrics.json", "r", encoding="utf-8") as f:
+    m = json.load(f)
 
 # ==========================================================
-# MAIN
+# INTERPRETAÇÕES
 # ==========================================================
 
-def main():
-    tg_token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    tg_chat  = os.environ.get("TELEGRAM_CHAT_ID")
+t1, b1, s1 = interpret_exchange_inflow(
+    m["exchange_inflow"]["ma7"],
+    m["exchange_inflow"]["avg_90d"],
+    m["exchange_inflow"]["percentil"]
+)
 
-    if not tg_token or not tg_chat:
-        raise SystemExit("❌ TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não definidos")
+t2, b2, s2 = interpret_exchange_netflow(m["exchange_netflow"]["value"])
 
-    # ======================
-    # CARREGAR MÉTRICAS
-    # ======================
-    with open(METRICS_FILE, "r", encoding="utf-8") as f:
-        metrics = json.load(f)
+t3, b3, s3 = interpret_exchange_reserve(
+    m["exchange_reserve"]["current"],
+    m["exchange_reserve"]["avg_180d"]
+)
 
-    # ======================
-    # ALERTAS COMPRA / VENDA
-    # ======================
-    alerts = check_signal_and_alert(metrics)
-    for alert in alerts:
-        telegram_send(tg_token, tg_chat, [alert])
+t4, b4, s4 = interpret_whale_inflow(
+    m["whale_inflow"]["value_24h"],
+    m["whale_inflow"]["avg_30d"]
+)
 
-    # ======================
-    # RELATÓRIO DIÁRIO
-    # ======================
-    numero = read_counter(COUNTERS_FILE, "btc_diario")
-    data_str = today_brt_str()
+t5, b5, s5 = interpret_whale_ratio(m["whale_ratio"]["value"])
 
-    t1, _, s1 = interpret_exchange_inflow(
-        metrics["exchange_inflow"]["ma7"],
-        metrics["exchange_inflow"]["avg_90d"],
-        metrics["exchange_inflow"]["percentil"]
-    )
+alerts = detect_alerts(
+    m["exchange_inflow"]["percentil"],
+    m["whale_ratio"]["value"],
+    m["whale_inflow"]["value_24h"],
+    m["whale_inflow"]["avg_30d"]
+)
 
-    t2, _, s2 = interpret_exchange_netflow(
-        metrics["exchange_netflow"]["value"]
-    )
+inst = institutional_block(m["institutional"]["etf_flow"])
 
-    t3, _, s3 = interpret_exchange_reserve(
-        metrics["exchange_reserve"]["current"],
-        metrics["exchange_reserve"]["avg_180d"]
-    )
-
-    t4a, _, s4a = interpret_whale_inflow(
-        metrics["whale_inflow"]["value_24h"],
-        metrics["whale_inflow"]["avg_30d"]
-    )
-
-    t4b, _, s4b = interpret_whale_ratio(
-        metrics["whale_ratio"]["value"]
-    )
-
-    score = compute_score([s1, s2, s3, s4a, s4b])
-    direction, strength = aggregate_bias([s1, s2, s3, s4a, s4b])
-    classification = classify_position(score)
-
-    alerts_text = detect_alerts(
-        metrics["exchange_inflow"]["percentil"],
-        metrics["whale_ratio"]["value"],
-        metrics["whale_inflow"]["value_24h"],
-        metrics["whale_inflow"]["avg_30d"]
-    )
-
-    sections = [
-        f"1) Exchange Inflow (MA7)\n{t1}",
-        f"2) Exchange Netflow (Total)\n{t2}",
-        f"3) Reservas em Exchanges\n{t3}",
-        f"4) Fluxos de Baleias\n{t4a}\n\n{t4b}",
-        f"5) Contexto Institucional\n{institutional_block(metrics['institutional']['etf_flow'])}"
-    ]
-
-    if alerts_text:
-        sections.append(
-            "⚠️ ALERTAS ON-CHAIN\n" +
-            "\n".join(f"- {a}" for a in alerts_text)
-        )
-
-    sections.extend([
-        f"📊 Score On-Chain: {score}/100",
-        f"📈 Viés Operacional: {direction} ({strength})",
-        f"🎯 Classificação: {classification}"
-    ])
-
-    report = (
-        f"📊 Dados On-Chain BTC — {data_str} — Diário — Nº {numero}\n\n" +
-        "\n\n".join(sections)
-    )
-
-    telegram_send(tg_token, tg_chat, chunk(report))
+score = compute_score([s1, s2, s3, s4, s5])
+bias, força = aggregate_bias([s1, s2, s3, s4, s5])
+posição = classify_position(score)
 
 # ==========================================================
-# ENTRYPOINT
+# MONTA RELATÓRIO
 # ==========================================================
 
-if __name__ == "__main__":
-    main()
+data = datetime.utcnow().strftime("%d/%m/%Y")
+
+msg = f"""
+📊 *Dados On-Chain BTC — {data} — Diário*
+
+1️⃣ *Exchange Inflow (MA7)*
+{t1}
+
+2️⃣ *Exchange Netflow*
+{t2}
+
+3️⃣ *Reservas em Exchanges*
+{t3}
+
+4️⃣ *Fluxos de Baleias*
+• {t4}
+• {t5}
+
+5️⃣ *Contexto Institucional*
+{inst}
+
+6️⃣ *Interpretação Executiva*
+• Viés: {bias} ({força})
+• Score: {score}/100
+• Recomendação: *{posição}*
+
+"""
+
+if alerts:
+    msg += "\n🚨 *Alertas*\n"
+    for a in alerts:
+        msg += f"• {a}\n"
+
+# ==========================================================
+# ENVIO TELEGRAM
+# ==========================================================
+
+print("DEBUG: enviando mensagem ao Telegram")
+
+url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+r = requests.post(url, data={
+    "chat_id": CHAT_ID,
+    "text": msg,
+    "parse_mode": "Markdown"
+})
+
+print("TELEGRAM STATUS:", r.status_code)
+print("TELEGRAM RESPONSE:", r.text)
+
+if r.status_code != 200:
+    raise SystemExit("❌ Falha ao enviar mensagem ao Telegram")
+
+print("✅ Mensagem enviada com sucesso")
