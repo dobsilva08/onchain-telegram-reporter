@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import requests
 
 from text_engine import (
@@ -11,94 +11,104 @@ from text_engine import (
     interpret_whale_ratio,
     compute_score,
     aggregate_bias,
-    classify_position
+    classify_position,
 )
 
-# ==========================================================
+# ==========================
 # CONFIG
-# ==========================================================
+# ==========================
 
 METRICS_FILE = "metrics.json"
 HISTORY_METRICS_FILE = "history_metrics.json"
+HISTORY_STATE_FILE = "history.json"
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# ==========================================================
+BRT = timezone(timedelta(hours=-3))
+
+
+# ==========================
 # HELPERS
-# ==========================================================
-
-def send_telegram(message: str):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": True
-    }
-    r = requests.post(url, json=payload, timeout=15)
-    r.raise_for_status()
-
+# ==========================
 
 def load_json(path, default):
     if not os.path.exists(path):
         return default
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, "r") as f:
         return json.load(f)
 
 
 def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
 
 
-def average(values):
-    if not values:
-        return 0
-    return sum(values) / len(values)
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+    r = requests.post(url, json=payload, timeout=20)
+    r.raise_for_status()
 
 
-def percent_delta(current, avg):
+def percent_vs_avg(current, avg):
     if avg == 0:
         return None
-    return (current - avg) / avg * 100
+    return ((current - avg) / avg) * 100
 
 
-# ==========================================================
+# ==========================
 # MAIN
-# ==========================================================
+# ==========================
 
 def main():
-    # ----------------------------
-    # LOAD METRICS
-    # ----------------------------
     metrics = load_json(METRICS_FILE, {})
+    history_metrics = load_json(HISTORY_METRICS_FILE, [])
+    history_state = load_json(HISTORY_STATE_FILE, {})
 
+    # --------------------------
+    # MÉTRICAS ATUAIS (CHAVES CORRETAS)
+    # --------------------------
     exchange_inflow = metrics.get("exchange_inflow", 0)
     exchange_netflow = metrics.get("exchange_netflow", 0)
     exchange_reserve = metrics.get("exchange_reserve", 0)
     whale_inflow_24h = metrics.get("whale_inflow_24h", 0)
     whale_ratio = metrics.get("whale_ratio", 0)
 
-    # ----------------------------
-    # LOAD HISTORY
-    # ----------------------------
-    history = load_json(HISTORY_METRICS_FILE, [])
+    # --------------------------
+    # HISTÓRICO (para percentuais)
+    # --------------------------
+    avg_inflow = history_metrics[-7:].count if False else (
+        sum(m.get("exchange_inflow", 0) for m in history_metrics[-7:]) / len(history_metrics[-7:])
+        if len(history_metrics) >= 7 else 0
+    )
 
-    inflow_hist = [h["exchange_inflow"] for h in history if "exchange_inflow" in h]
-    netflow_hist = [h["exchange_netflow"] for h in history if "exchange_netflow" in h]
-    reserve_hist = [h["exchange_reserve"] for h in history if "exchange_reserve" in h]
-    whale_hist = [h["whale_inflow"] for h in history if "whale_inflow" in h]
+    avg_netflow = (
+        sum(m.get("exchange_netflow", 0) for m in history_metrics[-7:]) / len(history_metrics[-7:])
+        if len(history_metrics) >= 7 else 0
+    )
 
-    avg_inflow = average(inflow_hist[-90:])
-    avg_netflow = average(netflow_hist[-90:])
-    avg_reserve = average(reserve_hist[-180:])
-    avg_whale = average(whale_hist[-30:])
+    avg_reserve = (
+        sum(m.get("exchange_reserve", 0) for m in history_metrics[-30:]) / len(history_metrics[-30:])
+        if len(history_metrics) >= 30 else 0
+    )
 
-    # ----------------------------
+    avg_whale = (
+        sum(m.get("whale_inflow_24h", 0) for m in history_metrics[-7:]) / len(history_metrics[-7:])
+        if len(history_metrics) >= 7 else 0
+    )
+
+    # --------------------------
     # INTERPRETAÇÕES
-    # ----------------------------
-    t1, b1, s1 = interpret_exchange_inflow(exchange_inflow, avg_inflow, 50)
+    # --------------------------
+    t1, b1, s1 = interpret_exchange_inflow(
+        exchange_inflow, avg_inflow, percentil=50
+    )
     t2, b2, s2 = interpret_exchange_netflow(exchange_netflow)
     t3, b3, s3 = interpret_exchange_reserve(exchange_reserve, avg_reserve)
     t4, b4, s4 = interpret_whale_inflow(whale_inflow_24h, avg_whale)
@@ -107,79 +117,65 @@ def main():
     scores = [s1, s2, s3, s4, s5]
     score = compute_score(scores)
     bias, strength = aggregate_bias(scores)
-    position = classify_position(score)
+    recommendation = classify_position(score)
 
-    # ----------------------------
-    # BUILD MESSAGE
-    # ----------------------------
-    today = datetime.now().strftime("%d/%m/%Y")
+    # --------------------------
+    # MENSAGEM
+    # --------------------------
+    today = datetime.now(BRT).strftime("%d/%m/%Y")
 
-    msg = []
-    msg.append(f"📊 <b>Dados On-Chain BTC — {today} — Diário</b>\n")
+    def pct_line(current, avg):
+        pct = percent_vs_avg(current, avg)
+        if pct is None:
+            return "Sem base histórica suficiente para comparação percentual."
+        return f"Variação de {pct:+.1f}% em relação à média histórica."
 
-    # 1 — Exchange Inflow
-    msg.append("1️⃣ <b>Exchange Inflow (MA7)</b>")
-    msg.append(t1)
-    delta = percent_delta(exchange_inflow, avg_inflow)
-    if delta is not None:
-        msg.append(f"{delta:+.1f}% em relação à média histórica.\n")
-    else:
-        msg.append("Sem base histórica suficiente para comparação percentual.\n")
+    msg = f"""📊 <b>Dados On-Chain BTC — {today} — Diário</b>
 
-    # 2 — Exchange Netflow
-    msg.append("2️⃣ <b>Exchange Netflow</b>")
-    msg.append(t2)
-    delta = percent_delta(exchange_netflow, avg_netflow)
-    if delta is not None:
-        msg.append(f"{delta:+.1f}% em relação à média histórica.\n")
-    else:
-        msg.append("Sem base histórica suficiente para comparação percentual.\n")
+<b>1️⃣ Exchange Inflow (MA7)</b>
+{t1}
+{pct_line(exchange_inflow, avg_inflow)}
 
-    # 3 — Reserves
-    msg.append("3️⃣ <b>Reservas em Exchanges</b>")
-    msg.append(t3)
-    delta = percent_delta(exchange_reserve, avg_reserve)
-    if delta is not None:
-        msg.append(f"{delta:+.1f}% em relação à média histórica.\n")
-    else:
-        msg.append("Sem base histórica suficiente para comparação percentual.\n")
+<b>2️⃣ Exchange Netflow</b>
+{t2}
+{pct_line(exchange_netflow, avg_netflow)}
 
-    # 4 — Whales
-    msg.append("4️⃣ <b>Fluxos de Baleias</b>")
-    msg.append(t4)
-    delta = percent_delta(whale_inflow_24h, avg_whale)
-    if delta is not None:
-        msg.append(f"{delta:+.1f}% em relação à média histórica.")
-    else:
-        msg.append("Sem base histórica suficiente para comparação percentual.")
-    msg.append(f"O Whale Ratio encontra-se em {whale_ratio:.2f}.\n")
+<b>3️⃣ Reservas em Exchanges</b>
+{t3}
+{pct_line(exchange_reserve, avg_reserve)}
 
-    # Executive
-    msg.append("📌 <b>Interpretação Executiva</b>")
-    msg.append(f"• Score On-Chain: {score}/100")
-    msg.append(f"• Viés de Mercado: {bias} ({strength})")
-    msg.append(f"• Recomendação: <b>{position}</b>")
+<b>4️⃣ Fluxos de Baleias</b>
+{t4}
+{pct_line(whale_inflow_24h, avg_whale)}
+Whale Ratio: {whale_ratio:.2f}
 
-    final_message = "\n".join(msg)
+📌 <b>Interpretação Executiva</b>
+• Score On-Chain: {score}/100  
+• Viés de Mercado: {bias} ({strength})  
+• Recomendação: <b>{recommendation}</b>
+"""
 
-    # ----------------------------
-    # SEND
-    # ----------------------------
-    send_telegram(final_message)
+    send_telegram(msg)
 
-    # ----------------------------
-    # UPDATE HISTORY
-    # ----------------------------
-    history.append({
+    # --------------------------
+    # SALVA HISTÓRICO
+    # --------------------------
+    history_metrics.append({
         "date": datetime.utcnow().isoformat(),
         "exchange_inflow": exchange_inflow,
         "exchange_netflow": exchange_netflow,
         "exchange_reserve": exchange_reserve,
-        "whale_inflow": whale_inflow_24h,
-        "whale_ratio": whale_ratio
+        "whale_inflow_24h": whale_inflow_24h,
+        "whale_ratio": whale_ratio,
     })
 
-    save_json(HISTORY_METRICS_FILE, history)
+    save_json(HISTORY_METRICS_FILE, history_metrics)
+
+    save_json(HISTORY_STATE_FILE, {
+        "last_score": score,
+        "last_recommendation": recommendation,
+        "last_date": datetime.utcnow().isoformat(),
+    })
 
 
 if __name__ == "__main__":
