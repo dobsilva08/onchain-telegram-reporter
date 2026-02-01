@@ -3,7 +3,7 @@ name: On-Chain BTC Reporter
 on:
   workflow_dispatch:
   schedule:
-    - cron: "15 12 * * *"   # ajuste se quiser
+    - cron: "0 9 * * *"   # 06:00 BRT ajuste se quiser
 
 jobs:
   run-onchain:
