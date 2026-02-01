@@ -1,205 +1,158 @@
-# ============================================================
-# On-Chain BTC Reporter — Fase 6.4 (ESTÁVEL)
-# Gera relatório diário determinístico e envia ao Telegram
-# ============================================================
+# onchain_to_telegram.py
+# Gera relatório on-chain BTC e alerta de mudança de regime
+# 100% determinístico | Sem IA | Compatível com GitHub Actions
 
 import json
 import os
-from datetime import datetime, timezone
 import requests
+from datetime import datetime, timezone, timedelta
 
-# ========================
+from text_engine import (
+    interpret_exchange_inflow,
+    interpret_exchange_netflow,
+    interpret_exchange_reserve,
+    interpret_whale_inflow,
+    interpret_whale_ratio,
+    compute_score,
+    aggregate_bias,
+    classify_position,
+)
+
+from alerts_engine import detect_regime_change
+
+# ==========================================================
 # CONFIGURAÇÕES
-# ========================
+# ==========================================================
+
+METRICS_FILE = "metrics.json"
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-METRICS_FILE = "metrics.json"
-HISTORY_FILE = "history.json"
+BRT = timezone(timedelta(hours=-3))
 
-# ========================
-# UTILIDADES
-# ========================
-
-def load_json(path):
-    if not os.path.exists(path):
-        return {}
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
+# ==========================================================
+# TELEGRAM
+# ==========================================================
 
 def send_telegram_message(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
-        "parse_mode": "Markdown"
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True
     }
-    requests.post(url, json=payload, timeout=20)
+    r = requests.post(url, data=payload, timeout=30)
+    r.raise_for_status()
 
+# ==========================================================
+# LOAD MÉTRICAS
+# ==========================================================
 
-def extract_value(metric):
-    """
-    Normaliza métricas que podem vir como:
-    - número
-    - dict { value: x }
-    """
-    if metric is None:
-        return None
-    if isinstance(metric, dict):
-        return metric.get("value")
-    return metric
+def load_metrics():
+    with open(METRICS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
 
-
-# ========================
-# INTERPRETAÇÕES
-# ========================
-
-def interpret_exchange_inflow(value):
-    if value is None:
-        return "N/A", 0
-
-    if value < 4000:
-        return (
-            f"O Exchange Inflow (MA7) está significativamente abaixo da média histórica, em {value:,.0f} BTC.",
-            2
-        )
-
-    return (
-        f"O Exchange Inflow (MA7) encontra-se em nível intermediário, em {value:,.0f} BTC.",
-        0
-    )
-
-
-def interpret_exchange_netflow(value):
-    if value is None:
-        return "N/A", 0
-
-    if value < 0:
-        return (
-            f"O Exchange Netflow registra saída líquida de aproximadamente {abs(value):,.0f} BTC das exchanges.",
-            2
-        )
-
-    return (
-        f"O Exchange Netflow registra entrada líquida de aproximadamente {value:,.0f} BTC nas exchanges.",
-        -1
-    )
-
-
-def interpret_exchange_reserves(value):
-    if value is None:
-        return "N/A", 0
-
-    return (
-        f"As reservas em exchanges seguem em {value:,.0f} BTC, abaixo da média histórica, indicando redução de oferta.",
-        2
-    )
-
-
-def interpret_whales(deposits, whale_ratio):
-    score = 0
-    lines = []
-
-    if deposits is not None:
-        lines.append(
-            f"Os depósitos de baleias somaram cerca de {deposits:,.0f} BTC nas últimas 24h."
-        )
-        score += 1
-    else:
-        lines.append("Os depósitos de baleias não puderam ser estimados.")
-
-    if whale_ratio is not None:
-        level = "baixo"
-        if whale_ratio > 0.85:
-            level = "elevado"
-            score -= 1
-        elif whale_ratio > 0.6:
-            level = "moderado"
-
-        lines.append(
-            f"O Whale Ratio encontra-se em {whale_ratio:.2f}, em nível {level}."
-        )
-    else:
-        lines.append("O Whale Ratio não está disponível.")
-
-    return " ".join(lines), score
-
-
-# ========================
-# SCORE E RECOMENDAÇÃO
-# ========================
-
-def compute_score(scores):
-    base = 50
-    return max(0, min(100, base + sum(scores) * 10))
-
-
-def market_bias(score):
-    if score >= 85:
-        return "Altista (Forte)", "Acumular"
-    if score >= 65:
-        return "Altista (Moderada)", "Acumular"
-    if score >= 45:
-        return "Neutro", "Manter"
-    return "Baixista", "Reduzir"
-
-
-# ========================
+# ==========================================================
 # MAIN
-# ========================
+# ==========================================================
 
 def main():
-    metrics = load_json(METRICS_FILE)
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        raise RuntimeError("Variáveis TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID ausentes.")
 
-    inflow = extract_value(metrics.get("exchange_inflow_ma7"))
-    netflow = extract_value(metrics.get("exchange_netflow"))
-    reserves = extract_value(metrics.get("exchange_reserves"))
-    whale_deposits = extract_value(metrics.get("whale_inflow_24h"))
-    whale_ratio = extract_value(metrics.get("whale_ratio"))
+    metrics = load_metrics()
 
-    scores = []
+    report_date = datetime.now(BRT).strftime("%d/%m/%Y")
 
-    inflow_text, s = interpret_exchange_inflow(inflow)
-    scores.append(s)
+    # =============================
+    # 1) EXCHANGE INFLOW
+    # =============================
+    inflow = metrics["exchange_inflow"]
+    txt1, bias1, s1 = interpret_exchange_inflow(
+        inflow["ma7"], inflow["avg_90d"], inflow["percentil"]
+    )
 
-    netflow_text, s = interpret_exchange_netflow(netflow)
-    scores.append(s)
+    # =============================
+    # 2) EXCHANGE NETFLOW
+    # =============================
+    netflow = metrics["exchange_netflow"]
+    txt2, bias2, s2 = interpret_exchange_netflow(netflow["value"])
 
-    reserves_text, s = interpret_exchange_reserves(reserves)
-    scores.append(s)
+    # =============================
+    # 3) EXCHANGE RESERVES
+    # =============================
+    reserves = metrics["exchange_reserve"]
+    txt3, bias3, s3 = interpret_exchange_reserve(
+        reserves["current"], reserves["avg_180d"]
+    )
 
-    whales_text, s = interpret_whales(whale_deposits, whale_ratio)
-    scores.append(s)
+    # =============================
+    # 4) WHALES
+    # =============================
+    whale_flow = metrics["whale_inflow"]
+    txt4a, bias4a, s4a = interpret_whale_inflow(
+        whale_flow["value_24h"], whale_flow["avg_30d"]
+    )
 
-    score = compute_score(scores)
-    bias, recommendation = market_bias(score)
+    whale_ratio = metrics["whale_ratio"]
+    txt4b, bias4b, s4b = interpret_whale_ratio(whale_ratio["value"])
 
-    today = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+    # =============================
+    # SCORE / VIÉS / RECOMENDAÇÃO
+    # =============================
+    score = compute_score([s1, s2, s3, s4a, s4b])
+    market_bias, strength = aggregate_bias([s1, s2, s3, s4a, s4b])
+    recommendation = classify_position(score)
 
-    message = f"""📊 *Dados On-Chain BTC — {today} — Diário*
+    # =============================
+    # RELATÓRIO
+    # =============================
+    message = f"""📊 <b>Dados On-Chain BTC — {report_date} — Diário</b>
 
-1️⃣ *Exchange Inflow (MA7)*
-{inflow_text}
+<b>1️⃣ Exchange Inflow (MA7)</b>
+{txt1}
 
-2️⃣ *Exchange Netflow*
-{netflow_text}
+<b>2️⃣ Exchange Netflow</b>
+{txt2}
 
-3️⃣ *Reservas em Exchanges*
-{reserves_text}
+<b>3️⃣ Reservas em Exchanges</b>
+{txt3}
 
-4️⃣ *Fluxos de Baleias*
-{whales_text}
+<b>4️⃣ Fluxos de Baleias</b>
+{txt4a}
+{txt4b}
 
-📌 *Interpretação Executiva*
-• Score On-Chain: *{score}/100*
-• Viés de Mercado: *{bias}*
-• Recomendação: *{recommendation}*
+📌 <b>Interpretação Executiva</b>
+• Score On-Chain: <b>{score}/100</b>
+• Viés de Mercado: <b>{market_bias} ({strength})</b>
+• Recomendação: <b>{recommendation}</b>
 """
 
     send_telegram_message(message)
 
+    # =============================
+    # ALERTA DE MUDANÇA DE REGIME
+    # =============================
+    current_state = {
+        "date": report_date,
+        "score": score,
+        "market_bias": f"{market_bias} ({strength})",
+        "recommendation": recommendation
+    }
+
+    alerts = detect_regime_change(current_state)
+
+    if alerts:
+        alert_msg = "🚨 <b>ALERTA DE MUDANÇA DE REGIME</b>\n\n"
+        alert_msg += "\n".join(f"• {a}" for a in alerts)
+        send_telegram_message(alert_msg)
+
+
+# ==========================================================
+# ENTRYPOINT
+# ==========================================================
 
 if __name__ == "__main__":
     main()
