@@ -1,6 +1,8 @@
+# ==========================================================
 # onchain_to_telegram.py
-# Gera relatório on-chain BTC e alerta de mudança de regime
-# 100% determinístico | Sem IA | Compatível com GitHub Actions
+# Relatório On-Chain BTC — Fase 6.4 compatível com engine atual
+# Determinístico | Sem IA | Estável | GitHub Actions
+# ==========================================================
 
 import json
 import os
@@ -11,14 +13,11 @@ from text_engine import (
     interpret_exchange_inflow,
     interpret_exchange_netflow,
     interpret_exchange_reserve,
-    interpret_whale_inflow,
-    interpret_whale_ratio,
-    compute_score,
-    aggregate_bias,
-    classify_position,
+    interpret_whale_flows,
+    compute_weighted_score,
+    classify_regime,
+    decide_recommendation
 )
-
-from alerts_engine import detect_regime_change
 
 # ==========================================================
 # CONFIGURAÇÕES
@@ -60,51 +59,63 @@ def load_metrics():
 
 def main():
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        raise RuntimeError("Variáveis TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID ausentes.")
+        raise RuntimeError("TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID ausentes.")
 
     metrics = load_metrics()
-
     report_date = datetime.now(BRT).strftime("%d/%m/%Y")
 
+    signals = {}
+
     # =============================
-    # 1) EXCHANGE INFLOW
+    # 1) Exchange Inflow
     # =============================
     inflow = metrics["exchange_inflow"]
-    txt1, bias1, s1 = interpret_exchange_inflow(
-        inflow["ma7"], inflow["avg_90d"], inflow["percentil"]
+    txt1, s1 = interpret_exchange_inflow(
+        inflow["ma7"],
+        inflow["avg_90d"],
+        inflow["percentil"]
     )
+    signals["exchange_inflow"] = s1
 
     # =============================
-    # 2) EXCHANGE NETFLOW
+    # 2) Exchange Netflow
     # =============================
     netflow = metrics["exchange_netflow"]
-    txt2, bias2, s2 = interpret_exchange_netflow(netflow["value"])
+    txt2, s2 = interpret_exchange_netflow(
+        netflow["value"],
+        netflow["avg_30d"]
+    )
+    signals["exchange_netflow"] = s2
 
     # =============================
-    # 3) EXCHANGE RESERVES
+    # 3) Exchange Reserves
     # =============================
     reserves = metrics["exchange_reserve"]
-    txt3, bias3, s3 = interpret_exchange_reserve(
-        reserves["current"], reserves["avg_180d"]
+    txt3, s3 = interpret_exchange_reserve(
+        reserves["current"],
+        reserves["avg_180d"]
     )
+    signals["exchange_reserve"] = s3
 
     # =============================
-    # 4) WHALES
+    # 4) Whale Flows + Ratio
     # =============================
-    whale_flow = metrics["whale_inflow"]
-    txt4a, bias4a, s4a = interpret_whale_inflow(
-        whale_flow["value_24h"], whale_flow["avg_30d"]
+    whale = metrics["whale_inflow"]
+    ratio = metrics["whale_ratio"]
+
+    txt4, s4 = interpret_whale_flows(
+        whale["value_24h"],
+        whale["avg_30d"],
+        ratio["value"]
     )
-
-    whale_ratio = metrics["whale_ratio"]
-    txt4b, bias4b, s4b = interpret_whale_ratio(whale_ratio["value"])
+    signals["whale_flows"] = s4
 
     # =============================
-    # SCORE / VIÉS / RECOMENDAÇÃO
+    # SCORE / REGIME / RECOMENDAÇÃO
     # =============================
-    score = compute_score([s1, s2, s3, s4a, s4b])
-    market_bias, strength = aggregate_bias([s1, s2, s3, s4a, s4b])
-    recommendation = classify_position(score)
+    score = compute_weighted_score(signals)
+    regime = classify_regime(score)
+    recommendation = decide_recommendation(regime)
 
     # =============================
     # RELATÓRIO
@@ -121,34 +132,15 @@ def main():
 {txt3}
 
 <b>4️⃣ Fluxos de Baleias</b>
-{txt4a}
-{txt4b}
+{txt4}
 
 📌 <b>Interpretação Executiva</b>
 • Score On-Chain: <b>{score}/100</b>
-• Viés de Mercado: <b>{market_bias} ({strength})</b>
+• Regime de Mercado: <b>{regime}</b>
 • Recomendação: <b>{recommendation}</b>
 """
 
     send_telegram_message(message)
-
-    # =============================
-    # ALERTA DE MUDANÇA DE REGIME
-    # =============================
-    current_state = {
-        "date": report_date,
-        "score": score,
-        "market_bias": f"{market_bias} ({strength})",
-        "recommendation": recommendation
-    }
-
-    alerts = detect_regime_change(current_state)
-
-    if alerts:
-        alert_msg = "🚨 <b>ALERTA DE MUDANÇA DE REGIME</b>\n\n"
-        alert_msg += "\n".join(f"• {a}" for a in alerts)
-        send_telegram_message(alert_msg)
-
 
 # ==========================================================
 # ENTRYPOINT
@@ -156,3 +148,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
