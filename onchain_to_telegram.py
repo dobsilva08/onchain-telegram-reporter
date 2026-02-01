@@ -7,11 +7,14 @@ from text_engine import (
     interpret_exchange_inflow,
     interpret_exchange_netflow,
     interpret_exchange_reserve,
-    interpret_whale_flows,
-    compute_weighted_score,
-    classify_regime,
-    decide_recommendation
+    interpret_whale_inflow,
+    interpret_whale_ratio,
+    compute_score,
+    aggregate_bias,
+    classify_position,
 )
+
+from alerts_engine import detect_regime_change
 
 METRICS_FILE = "metrics.json"
 
@@ -39,39 +42,36 @@ def load_metrics():
 
 
 def main():
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        raise RuntimeError("Variáveis TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID ausentes.")
+
     metrics = load_metrics()
     report_date = datetime.now(BRT).strftime("%d/%m/%Y")
-
-    signals = {}
 
     inflow = metrics["exchange_inflow"]
     txt1, s1 = interpret_exchange_inflow(
         inflow["ma7"], inflow["avg_90d"], inflow["percentil"]
     )
-    signals["exchange_inflow"] = s1
 
     netflow = metrics["exchange_netflow"]
-    txt2, s2 = interpret_exchange_netflow(
-        netflow["value"], netflow["avg_30d"]
-    )
-    signals["exchange_netflow"] = s2
+    txt2, s2 = interpret_exchange_netflow(netflow["value"])
 
     reserves = metrics["exchange_reserve"]
     txt3, s3 = interpret_exchange_reserve(
         reserves["current"], reserves["avg_180d"]
     )
-    signals["exchange_reserve"] = s3
 
-    whales = metrics["whale_inflow"]
-    ratio = metrics["whale_ratio"]
-    txt4, s4 = interpret_whale_flows(
-        whales["value_24h"], whales["avg_30d"], ratio["value"]
+    whale_flow = metrics["whale_inflow"]
+    txt4a, s4a = interpret_whale_inflow(
+        whale_flow["value_24h"], whale_flow["avg_30d"]
     )
-    signals["whale_flows"] = s4
 
-    score = compute_weighted_score(signals)
-    regime = classify_regime(score)
-    recommendation = decide_recommendation(regime)
+    whale_ratio = metrics["whale_ratio"]
+    txt4b, s4b = interpret_whale_ratio(whale_ratio["value"])
+
+    score = compute_score([s1, s2, s3, s4a, s4b])
+    market_bias, strength = aggregate_bias([s1, s2, s3, s4a, s4b])
+    recommendation = classify_position(score)
 
     message = f"""📊 <b>Dados On-Chain BTC — {report_date} — Diário</b>
 
@@ -85,15 +85,30 @@ def main():
 {txt3}
 
 <b>4️⃣ Fluxos de Baleias</b>
-{txt4}
+{txt4a}
+{txt4b}
 
 📌 <b>Interpretação Executiva</b>
 • Score On-Chain: <b>{score}/100</b>
-• Regime de Mercado: <b>{regime}</b>
+• Viés de Mercado: <b>{market_bias} ({strength})</b>
 • Recomendação: <b>{recommendation}</b>
 """
 
     send_telegram_message(message)
+
+    current_state = {
+        "date": report_date,
+        "score": score,
+        "market_bias": f"{market_bias} ({strength})",
+        "recommendation": recommendation
+    }
+
+    alerts = detect_regime_change(current_state)
+
+    if alerts:
+        alert_msg = "🚨 <b>ALERTA DE MUDANÇA DE REGIME</b>\n\n"
+        alert_msg += "\n".join(f"• {a}" for a in alerts)
+        send_telegram_message(alert_msg)
 
 
 if __name__ == "__main__":
