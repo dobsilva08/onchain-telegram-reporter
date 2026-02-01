@@ -1,13 +1,11 @@
 # onchain_to_telegram.py
-# ==========================================================
-# Relatório On-Chain BTC — FASE 6.3.1
-# Percentual estrutural em Reservas (180d)
-# ==========================================================
+# Gera relatório on-chain BTC e alerta de mudança de regime
+# 100% determinístico | Sem IA | Compatível com GitHub Actions
 
 import json
 import os
-from datetime import datetime, timezone, timedelta
 import requests
+from datetime import datetime, timezone, timedelta
 
 from text_engine import (
     interpret_exchange_inflow,
@@ -17,189 +15,144 @@ from text_engine import (
     interpret_whale_ratio,
     compute_score,
     aggregate_bias,
-    classify_position
+    classify_position,
 )
 
-# ----------------------------------------------------------
-# Configurações
-# ----------------------------------------------------------
+from alerts_engine import detect_regime_change
+
+# ==========================================================
+# CONFIGURAÇÕES
+# ==========================================================
 
 METRICS_FILE = "metrics.json"
-HISTORY_FILE = "history_metrics.json"
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 BRT = timezone(timedelta(hours=-3))
 
-# ----------------------------------------------------------
-# Histórico
-# ----------------------------------------------------------
+# ==========================================================
+# TELEGRAM
+# ==========================================================
 
-def load_history():
-    if not os.path.exists(HISTORY_FILE):
-        return {
-            "exchange_netflow": [],
-            "exchange_inflow": [],
-            "exchange_reserve": [],
-            "whale_inflow": [],
-            "miner_inflow": [],
-            "whale_ratio": []
-        }
-    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def save_history(history):
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
-
-def update_history(history, key, value, max_len=200):
-    history[key].append(value)
-    history[key] = history[key][-max_len:]
-
-def avg_last(values, n):
-    if len(values) < n:
-        return None
-    return sum(values[-n:]) / n
-
-def pct_vs_avg(current, avg):
-    if avg is None or avg == 0:
-        return None
-    return (current - avg) / abs(avg) * 100
-
-# ----------------------------------------------------------
-# Telegram
-# ----------------------------------------------------------
-
-def send_telegram(message):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+def send_telegram_message(text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
-        "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True
     }
-    r = requests.post(url, json=payload, timeout=15)
+    r = requests.post(url, data=payload, timeout=30)
     r.raise_for_status()
 
-# ----------------------------------------------------------
+# ==========================================================
+# LOAD MÉTRICAS
+# ==========================================================
+
+def load_metrics():
+    with open(METRICS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+# ==========================================================
 # MAIN
-# ----------------------------------------------------------
+# ==========================================================
 
 def main():
-    with open(METRICS_FILE, "r", encoding="utf-8") as f:
-        metrics = json.load(f)
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        raise RuntimeError("Variáveis TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID ausentes.")
 
-    history = load_history()
+    metrics = load_metrics()
 
-    # -----------------------------
-    # Dados atuais
-    # -----------------------------
+    report_date = datetime.now(BRT).strftime("%d/%m/%Y")
 
-    inflow = metrics["exchange_inflow"]["ma7"]
-    netflow = metrics["exchange_netflow"]["value"]
-    reserve_current = metrics["exchange_reserve"]["current"]
-    whale_inflow = metrics["whale_inflow"]["value_24h"]
-    whale_ratio_val = metrics["whale_ratio"]["value"]
-
-    # -----------------------------
-    # Atualiza histórico
-    # -----------------------------
-
-    update_history(history, "exchange_inflow", inflow)
-    update_history(history, "exchange_netflow", netflow)
-    update_history(history, "exchange_reserve", reserve_current)
-    update_history(history, "whale_inflow", whale_inflow)
-    update_history(history, "whale_ratio", whale_ratio_val)
-
-    save_history(history)
-
-    # -----------------------------
-    # Médias (Opção C)
-    # -----------------------------
-
-    avg_inflow_14d = avg_last(history["exchange_inflow"], 14)
-    avg_netflow_7d = avg_last(history["exchange_netflow"], 7)
-    avg_reserve_180d = avg_last(history["exchange_reserve"], 180)
-    avg_whale_7d = avg_last(history["whale_inflow"], 7)
-
-    pct_inflow = pct_vs_avg(inflow, avg_inflow_14d)
-    pct_netflow = pct_vs_avg(netflow, avg_netflow_7d)
-    pct_reserve = pct_vs_avg(reserve_current, avg_reserve_180d)
-    pct_whale = pct_vs_avg(whale_inflow, avg_whale_7d)
-
-    # -----------------------------
-    # Interpretações
-    # -----------------------------
-
-    t1, _, s1 = interpret_exchange_inflow(
-        metrics["exchange_inflow"]["ma7"],
-        metrics["exchange_inflow"]["avg_90d"],
-        metrics["exchange_inflow"]["percentil"]
+    # =============================
+    # 1) EXCHANGE INFLOW
+    # =============================
+    inflow = metrics["exchange_inflow"]
+    txt1, bias1, s1 = interpret_exchange_inflow(
+        inflow["ma7"], inflow["avg_90d"], inflow["percentil"]
     )
 
-    t2, _, s2 = interpret_exchange_netflow(netflow)
+    # =============================
+    # 2) EXCHANGE NETFLOW
+    # =============================
+    netflow = metrics["exchange_netflow"]
+    txt2, bias2, s2 = interpret_exchange_netflow(netflow["value"])
 
-    t3, _, s3 = interpret_exchange_reserve(
-        reserve_current,
-        metrics["exchange_reserve"]["avg_180d"]
+    # =============================
+    # 3) EXCHANGE RESERVES
+    # =============================
+    reserves = metrics["exchange_reserve"]
+    txt3, bias3, s3 = interpret_exchange_reserve(
+        reserves["current"], reserves["avg_180d"]
     )
 
-    t4a, _, s4a = interpret_whale_inflow(
-        whale_inflow,
-        metrics["whale_inflow"]["avg_30d"]
+    # =============================
+    # 4) WHALES
+    # =============================
+    whale_flow = metrics["whale_inflow"]
+    txt4a, bias4a, s4a = interpret_whale_inflow(
+        whale_flow["value_24h"], whale_flow["avg_30d"]
     )
 
-    t4b, _, s4b = interpret_whale_ratio(whale_ratio_val)
+    whale_ratio = metrics["whale_ratio"]
+    txt4b, bias4b, s4b = interpret_whale_ratio(whale_ratio["value"])
 
-    scores = [s1, s2, s3, s4a, s4b]
-
-    score = compute_score(scores)
-    bias, strength = aggregate_bias(scores)
+    # =============================
+    # SCORE / VIÉS / RECOMENDAÇÃO
+    # =============================
+    score = compute_score([s1, s2, s3, s4a, s4b])
+    market_bias, strength = aggregate_bias([s1, s2, s3, s4a, s4b])
     recommendation = classify_position(score)
 
-    # -----------------------------
-    # Texto percentual
-    # -----------------------------
+    # =============================
+    # RELATÓRIO
+    # =============================
+    message = f"""📊 <b>Dados On-Chain BTC — {report_date} — Diário</b>
 
-    def pct_text(pct, days):
-        if pct is None:
-            return "Sem base histórica suficiente para comparação percentual."
-        direction = "acima" if pct > 0 else "abaixo"
-        return f"Isto representa {abs(pct):.0f}% {direction} da média dos últimos {days} dias."
+<b>1️⃣ Exchange Inflow (MA7)</b>
+{txt1}
 
-    # -----------------------------
-    # Mensagem
-    # -----------------------------
+<b>2️⃣ Exchange Netflow</b>
+{txt2}
 
-    today = datetime.now(BRT).strftime("%d/%m/%Y")
+<b>3️⃣ Reservas em Exchanges</b>
+{txt3}
 
-    message = f"""
-📊 *Dados On-Chain BTC — {today} — Diário*
+<b>4️⃣ Fluxos de Baleias</b>
+{txt4a}
+{txt4b}
 
-*1️⃣ Exchange Inflow (MA7)*
-{t1}
-_{pct_text(pct_inflow, 14)}_
-
-*2️⃣ Exchange Netflow*
-{t2}
-_{pct_text(pct_netflow, 7)}_
-
-*3️⃣ Reservas em Exchanges*
-{t3}
-_{pct_text(pct_reserve, 180)}_
-
-*4️⃣ Fluxos de Baleias*
-{t4a}
-_{pct_text(pct_whale, 7)}_
-{t4b}
-
-📌 *Interpretação Executiva*
-• Score On-Chain: *{score}/100*
-• Viés de Mercado: *{bias} ({strength})*
-• Recomendação: *{recommendation}*
+📌 <b>Interpretação Executiva</b>
+• Score On-Chain: <b>{score}/100</b>
+• Viés de Mercado: <b>{market_bias} ({strength})</b>
+• Recomendação: <b>{recommendation}</b>
 """
 
-    send_telegram(message.strip())
+    send_telegram_message(message)
+
+    # =============================
+    # ALERTA DE MUDANÇA DE REGIME
+    # =============================
+    current_state = {
+        "date": report_date,
+        "score": score,
+        "market_bias": f"{market_bias} ({strength})",
+        "recommendation": recommendation
+    }
+
+    alerts = detect_regime_change(current_state)
+
+    if alerts:
+        alert_msg = "🚨 <b>ALERTA DE MUDANÇA DE REGIME</b>\n\n"
+        alert_msg += "\n".join(f"• {a}" for a in alerts)
+        send_telegram_message(alert_msg)
+
+
+# ==========================================================
+# ENTRYPOINT
+# ==========================================================
 
 if __name__ == "__main__":
     main()
