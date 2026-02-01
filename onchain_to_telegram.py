@@ -1,76 +1,79 @@
+import os
 import json
+import requests
 from datetime import datetime
-from text_engine import (
-    compute_weighted_score,
-    classify_regime,
-    decide_recommendation,
-    stabilize_state
-)
-from telegram_utils import send_message  # você já tem isso funcionando
 
-HISTORY_FILE = "history.json"
-METRICS_FILE = "metrics.json"
+# =========================
+# CONFIG TELEGRAM
+# =========================
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    raise ValueError("❌ Variáveis TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não definidas")
+
+TELEGRAM_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
 
-def load_history():
-    try:
-        with open(HISTORY_FILE, "r") as f:
-            return json.load(f)
-    except:
+# =========================
+# FUNÇÃO TELEGRAM
+# =========================
+def send_telegram_message(text: str):
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": text,
+        "parse_mode": "Markdown"
+    }
+    response = requests.post(TELEGRAM_URL, json=payload, timeout=15)
+    response.raise_for_status()
+
+
+# =========================
+# LOAD DATA
+# =========================
+def load_json(path):
+    if not os.path.exists(path):
         return {}
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
-def save_history(score, regime, recommendation, reason):
-    data = {
-        "last_score": score,
-        "last_regime": regime,
-        "last_recommendation": recommendation,
-        "last_change_reason": reason,
-        "last_date": datetime.utcnow().isoformat()
-    }
-    with open(HISTORY_FILE, "w") as f:
-        json.dump(data, f, indent=2)
-
-
+# =========================
+# MAIN
+# =========================
 def main():
-    with open(METRICS_FILE, "r") as f:
-        metrics = json.load(f)
+    metrics = load_json("metrics.json")
 
-    # Scores normalizados já calculados antes
-    scores = {
-        "exchange_inflow": metrics["signals"]["exchange_inflow"],
-        "exchange_netflow": metrics["signals"]["exchange_netflow"],
-        "exchange_reserve": metrics["signals"]["exchange_reserve"],
-        "whale_flows": metrics["signals"]["whale_flows"]
-    }
+    exchange_inflow = metrics.get("exchange_inflow_ma7", "N/A")
+    exchange_netflow = metrics.get("exchange_netflow", "N/A")
+    reserves = metrics.get("exchange_reserves", "N/A")
+    whale_flow = metrics.get("whale_inflow_24h", "N/A")
+    whale_ratio = metrics.get("whale_ratio", "N/A")
 
-    raw_score = compute_weighted_score(scores)
-
-    history = load_history()
-    stabilized = stabilize_state(raw_score, history)
-
-    final_score = stabilized["score"]
-    final_regime = stabilized["regime"]
-    recommendation = decide_recommendation(final_regime)
-
-    save_history(
-        final_score,
-        final_regime,
-        recommendation,
-        stabilized["reason"]
-    )
+    today = datetime.utcnow().strftime("%d/%m/%Y")
 
     message = f"""
-📊 Dados On-Chain BTC — Diário
+🔗📊 *Dados On-Chain BTC — {today} — Diário*
 
-• Score On-Chain: {final_score}/100
-• Regime: {final_regime}
-• Recomendação: {recommendation}
+1️⃣ *Exchange Inflow (MA7)*
+{exchange_inflow}
 
-ℹ️ {stabilized['reason']}
+2️⃣ *Exchange Netflow*
+{exchange_netflow}
+
+3️⃣ *Reservas em Exchanges*
+{reserves}
+
+4️⃣ *Fluxos de Baleias*
+Depósitos: {whale_flow}
+Whale Ratio: {whale_ratio}
+
+📌 *Interpretação Executiva*
+• Sistema: Determinístico
+• Status: Operacional
 """
 
-    send_message(message)
+    send_telegram_message(message.strip())
 
 
 if __name__ == "__main__":
