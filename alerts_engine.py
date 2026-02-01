@@ -1,57 +1,64 @@
 # alerts_engine.py
-# Detecta mudança de regime e gera alerta operacional
+# Detecta mudança de regime on-chain
+# Compatível com history.json em formato de estado único
 
 import json
 import os
 
 HISTORY_FILE = "history.json"
 
+# ==========================================================
+# LOAD / SAVE STATE
+# ==========================================================
+
 def load_last_state():
     if not os.path.exists(HISTORY_FILE):
         return None
+
     with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        return data[-1] if data else None
+        return json.load(f)
 
 
 def save_current_state(state):
-    data = []
-    if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    data.append(state)
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump(
+            {
+                "last_recommendation": state["recommendation"],
+                "last_score": state["score"],
+                "last_date": state["date"],
+            },
+            f,
+            indent=2,
+            ensure_ascii=False,
+        )
 
+# ==========================================================
+# REGIME CHANGE DETECTION
+# ==========================================================
 
-def detect_regime_change(current):
-    last = load_last_state()
-    if not last:
-        save_current_state(current)
-        return None  # primeiro dia, sem alerta
-
+def detect_regime_change(current_state):
     alerts = []
 
-    # 1️⃣ Recomendação
-    if current["recommendation"] != last["recommendation"]:
-        alerts.append(
-            f"📌 Recomendação mudou: {last['recommendation']} → {current['recommendation']}"
-        )
+    last_state = load_last_state()
 
-    # 2️⃣ Viés de mercado
-    if current["market_bias"] != last["market_bias"]:
-        alerts.append(
-            f"📊 Viés de mercado mudou: {last['market_bias']} → {current['market_bias']}"
-        )
+    if last_state:
+        # Mudança de recomendação
+        if last_state["last_recommendation"] != current_state["recommendation"]:
+            alerts.append(
+                f"Recomendação mudou de <b>{last_state['last_recommendation']}</b> "
+                f"para <b>{current_state['recommendation']}</b>."
+            )
 
-    # 3️⃣ Score
-    score_delta = current["score"] - last["score"]
-    if abs(score_delta) >= 15:
-        direction = "⬆️ aumento" if score_delta > 0 else "⬇️ queda"
-        alerts.append(
-            f"🎯 Score On-Chain teve {direction} de {abs(score_delta)} pontos"
-        )
+        # Mudança relevante de score
+        delta_score = current_state["score"] - last_state["last_score"]
+        if abs(delta_score) >= 15:
+            direction = "aumentou" if delta_score > 0 else "caiu"
+            alerts.append(
+                f"Score On-Chain {direction} de "
+                f"{last_state['last_score']} para {current_state['score']}."
+            )
 
-    save_current_state(current)
+    # Sempre salva o estado atual
+    save_current_state(current_state)
 
-    return alerts if alerts else None
+    return alerts
