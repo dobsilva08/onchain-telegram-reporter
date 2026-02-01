@@ -68,7 +68,7 @@ O sistema gera automaticamente:
 
 ## 📲 Exemplo de relatório no Telegram
 
-📊 Dados On-Chain BTC — 31/01/2026 — Diário
+📊 Dados On-Chain BTC — 00/00/0000 — Diário
 
 1️⃣ Exchange Inflow (MA7)
 O Exchange Inflow (MA7) está significativamente abaixo da média histórica, em 3.200 BTC.
@@ -173,6 +173,7 @@ Configure em **Settings → Secrets → Actions**:
 
 Projeto desenvolvido e arquitetado por **Douglas**  
 com foco em **robustez, clareza e controle total da lógica**.
+
 
 
 
