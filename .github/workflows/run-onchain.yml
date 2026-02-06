@@ -1,17 +1,16 @@
-name: On-Chain BTC Reporter
+name: run-onchain
 
 on:
   schedule:
-    - cron: "15 9 * * *"
+    - cron: "0 9 * * *"
   workflow_dispatch:
 
 jobs:
-  run-onchain:
+  run:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -21,19 +20,14 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Collect on-chain data
-        run: python collector.py
+      - name: Collect market data
+        run: python collector_market.py
 
-      - name: Generate report and alerts
+      - name: Collect onchain data
+        run: python collector_onchain.py
+
+      - name: Send reports
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python onchain_to_telegram.py
-
-      - name: Commit updated history
-        run: |
-          git config user.name "onchain-bot"
-          git config user.email "bot@onchain.local"
-          git add history.json
-          git commit -m "Update on-chain history" || echo "No changes"
-          git push
+        run: python run_all.py
