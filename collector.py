@@ -3,27 +3,36 @@ import json
 from datetime import datetime
 
 HISTORY_FILE = "history_metrics.json"
+ASSET = "btc"
 
-def fetch_coinmetrics(metric, asset="btc"):
+def fetch_metric(metric):
     url = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
     params = {
-        "assets": asset,
+        "assets": ASSET,
         "metrics": metric,
         "frequency": "1d",
-        "page_size": 1
+        "page_size": 2
     }
     r = requests.get(url, params=params, timeout=20)
     r.raise_for_status()
-    data = r.json()["data"]
-    return float(data[0][metric])
+    return r.json()["data"]
 
 def collect_btc_metrics():
+    tx_value = fetch_metric("TxTfrValUSD")
+    tx_value_adj = fetch_metric("TxTfrValAdjUSD")
+    supply = fetch_metric("SplyCur")
+
+    today = float(tx_value[0]["TxTfrValUSD"])
+    yesterday = float(tx_value[1]["TxTfrValUSD"])
+
+    netflow_proxy = today - yesterday
+
     return {
         "date": datetime.utcnow().isoformat(),
-        "exchange_inflow": fetch_coinmetrics("ExchangeInflow"),
-        "exchange_outflow": fetch_coinmetrics("ExchangeOutflow"),
-        "exchange_reserve": fetch_coinmetrics("ExchangeBalance"),
-        "whale_ratio": fetch_coinmetrics("ExchangeWhaleRatio")
+        "exchange_inflow_proxy_usd": today,
+        "exchange_netflow_proxy_usd": netflow_proxy,
+        "circulating_supply": float(supply[0]["SplyCur"]),
+        "whale_activity_proxy": float(tx_value_adj[0]["TxTfrValAdjUSD"])
     }
 
 def save_history(entry):
@@ -41,4 +50,4 @@ def save_history(entry):
 if __name__ == "__main__":
     data = collect_btc_metrics()
     save_history(data)
-    print("✅ On-chain data coletado com sucesso")
+    print("✅ Dados on-chain reais coletados com sucesso")
