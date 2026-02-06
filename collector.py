@@ -2,85 +2,77 @@ import requests
 import json
 from datetime import datetime
 
+HISTORY_FILE = "history.json"
 TIMEOUT = 10
 
 # -----------------------------
-# FONTES GRATUITAS (fallback)
+# UTIL
 # -----------------------------
 
-def fetch_blockchain_chart(chart):
-    url = f"https://api.blockchain.info/charts/{chart}?timespan=7days&format=json"
+def safe_get(url):
     r = requests.get(url, timeout=TIMEOUT)
     r.raise_for_status()
-    data = r.json()
-    return data["values"][-1]["y"]
-
-def fetch_coingecko_price(asset_id):
-    url = f"https://api.coingecko.com/api/v3/simple/price?ids={asset_id}&vs_currencies=usd"
-    r = requests.get(url, timeout=TIMEOUT)
-    r.raise_for_status()
-    return r.json()[asset_id]["usd"]
+    return r.json()
 
 # -----------------------------
-# FALLBACK GENÉRICO
+# COINGECKO (FREE / ESTÁVEL)
 # -----------------------------
 
-def fetch_with_fallback(functions):
-    for fn in functions:
-        try:
-            value = fn()
-            if value is not None:
-                return value
-        except Exception as e:
-            print(f"[FALLBACK] Fonte falhou: {e}")
-    return None
+def fetch_coingecko_market(asset_id):
+    url = (
+        "https://api.coingecko.com/api/v3/coins/markets"
+        f"?vs_currency=usd&ids={asset_id}"
+    )
+    data = safe_get(url)
+    return data[0] if data else None
 
 # -----------------------------
-# COLETA BTC (fase 6.4 estável)
+# COLETA BTC (FASE 6.4)
 # -----------------------------
 
 def collect_btc_metrics():
-    data = {
+    market = fetch_coingecko_market("bitcoin")
+
+    snapshot = {
         "date": datetime.utcnow().strftime("%Y-%m-%d"),
         "asset": "BTC",
-        "metrics": {}
+        "metrics": {
+            "price_usd": market["current_price"] if market else None,
+            "volume_24h": market["total_volume"] if market else None,
+            "price_change_24h": market["price_change_percentage_24h"],
+            "market_cap": market["market_cap"] if market else None,
+        }
     }
 
-    data["metrics"]["exchange_inflow"] = fetch_with_fallback([
-        lambda: fetch_blockchain_chart("exchange-volume")
-    ])
-
-    data["metrics"]["exchange_netflow"] = fetch_with_fallback([
-        lambda: fetch_blockchain_chart("exchange-netflow")
-    ])
-
-    data["metrics"]["exchange_reserves"] = fetch_with_fallback([
-        lambda: fetch_blockchain_chart("total-bitcoins")
-    ])
-
-    data["metrics"]["whale_ratio"] = fetch_with_fallback([
-        lambda: fetch_coingecko_price("bitcoin") / 100000
-    ])
-
-    return data
+    return snapshot
 
 # -----------------------------
-# HISTÓRICO
+# HISTÓRICO (CORRIGIDO)
 # -----------------------------
+
+def load_history():
+    try:
+        with open(HISTORY_FILE, "r") as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                return data
+            else:
+                return []  # CORREÇÃO CRÍTICA
+    except:
+        return []
 
 def save_history(snapshot):
-    try:
-        with open("history.json", "r") as f:
-            history = json.load(f)
-    except:
-        history = []
-
+    history = load_history()
     history.append(snapshot)
 
-    with open("history.json", "w") as f:
+    with open(HISTORY_FILE, "w") as f:
         json.dump(history, f, indent=2)
+
+# -----------------------------
+# MAIN
+# -----------------------------
 
 if __name__ == "__main__":
     snapshot = collect_btc_metrics()
     save_history(snapshot)
-    print("[OK] Coleta concluída")
+    print("[OK] Coleta BTC concluída com sucesso")
