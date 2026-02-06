@@ -4,52 +4,41 @@ from datetime import datetime
 
 HISTORY_FILE = "history_metrics.json"
 
-def fetch_json(url):
-    r = requests.get(url, timeout=15)
+def fetch_coinmetrics(metric, asset="btc"):
+    url = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
+    params = {
+        "assets": asset,
+        "metrics": metric,
+        "frequency": "1d",
+        "page_size": 1
+    }
+    r = requests.get(url, params=params, timeout=20)
     r.raise_for_status()
-    return r.json()
+    data = r.json()["data"]
+    return float(data[0][metric])
 
 def collect_btc_metrics():
-    # Fontes públicas e gratuitas (Blockchain.com)
-    inflow = fetch_json(
-        "https://api.blockchain.info/charts/exchange-inflow?timespan=7days&format=json"
-    )["values"][-1]["y"]
-
-    netflow = fetch_json(
-        "https://api.blockchain.info/charts/exchange-netflow?timespan=1days&format=json"
-    )["values"][-1]["y"]
-
-    reserves = fetch_json(
-        "https://api.blockchain.info/charts/exchange-reserves?timespan=1days&format=json"
-    )["values"][-1]["y"]
-
-    whale_ratio = fetch_json(
-        "https://api.blockchain.info/charts/whale-transaction-ratio?timespan=1days&format=json"
-    )["values"][-1]["y"]
-
     return {
-        "date": datetime.utcnow().strftime("%Y-%m-%d"),
-        "asset": "BTC",
-        "exchange_inflow": round(inflow, 2),
-        "exchange_netflow": round(netflow, 2),
-        "exchange_reserves": round(reserves, 2),
-        "whale_ratio": round(whale_ratio, 2)
+        "date": datetime.utcnow().isoformat(),
+        "exchange_inflow": fetch_coinmetrics("ExchangeInflow"),
+        "exchange_outflow": fetch_coinmetrics("ExchangeOutflow"),
+        "exchange_reserve": fetch_coinmetrics("ExchangeBalance"),
+        "whale_ratio": fetch_coinmetrics("ExchangeWhaleRatio")
     }
 
-def load_history():
+def save_history(entry):
     try:
         with open(HISTORY_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return []
+            history = json.load(f)
+    except FileNotFoundError:
+        history = []
 
-def save_history(entry):
-    history = load_history()
     history.append(entry)
+
     with open(HISTORY_FILE, "w") as f:
         json.dump(history, f, indent=2)
 
 if __name__ == "__main__":
     data = collect_btc_metrics()
     save_history(data)
-    print("[collector] Dados coletados e salvos com sucesso")
+    print("✅ On-chain data coletado com sucesso")
