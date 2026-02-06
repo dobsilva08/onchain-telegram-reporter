@@ -1,56 +1,47 @@
 import json
 from datetime import datetime
-import os
-import requests
+from telegram_utils import send_message
 
-HISTORY_FILE = "history_metrics.json"
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+def load_last():
+    with open("history.json", "r") as f:
+        return json.load(f)[-1]
 
-def send_message(text):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": CHAT_ID, "text": text})
-
-def load_latest():
-    with open(HISTORY_FILE, "r") as f:
-        data = json.load(f)
-        return data[-1]
-
-def calculate_score(m):
-    score = 50
-    if m["exchange_netflow"] < 0:
-        score += 20
-    if m["exchange_inflow"] < 4000:
-        score += 15
-    if m["whale_ratio"] < 0.6:
-        score += 15
-    return min(score, 100)
+def score_onchain(m):
+    score = 0
+    if m["exchange_netflow"] and m["exchange_netflow"] < 0:
+        score += 30
+    if m["exchange_reserves"]:
+        score += 30
+    if m["whale_ratio"] and m["whale_ratio"] < 1:
+        score += 40
+    return score
 
 def main():
-    m = load_latest()
-    score = calculate_score(m)
+    data = load_last()
+    m = data["metrics"]
+    score = score_onchain(m)
 
-    text = f"""📊 Dados On-Chain {m["asset"]} — {datetime.utcnow().strftime('%d/%m/%Y')} — Diário
+    msg = f"""
+📊 *Dados On-Chain BTC — {datetime.utcnow().strftime('%d/%m/%Y')} — Diário*
 
-1️⃣ Exchange Inflow (MA7)
-{m["exchange_inflow"]} BTC
+1️⃣ *Exchange Inflow*
+{m['exchange_inflow']}
 
-2️⃣ Exchange Netflow
-{m["exchange_netflow"]} BTC
+2️⃣ *Exchange Netflow*
+{m['exchange_netflow']}
 
-3️⃣ Reservas em Exchanges
-{m["exchange_reserves"]} BTC
+3️⃣ *Reservas em Exchanges*
+{m['exchange_reserves']}
 
-4️⃣ Fluxos de Baleias
-Whale Ratio: {m["whale_ratio"]}
+4️⃣ *Fluxos de Baleias*
+Whale Ratio: {round(m['whale_ratio'],2) if m['whale_ratio'] else 'N/A'}
 
-📌 Interpretação Executiva
+📌 *Interpretação Executiva*
 • Score On-Chain: {score}/100
-• Viés de Mercado: {"Altista (Forte)" if score >= 80 else "Altista (Moderada)"}
-• Recomendação: Acumular
+• Viés: {'Altista' if score >= 70 else 'Neutro'}
+• Recomendação: {'Acumular' if score >= 70 else 'Aguardar'}
 """
-
-    send_message(text)
+    send_message(msg)
 
 if __name__ == "__main__":
     main()
