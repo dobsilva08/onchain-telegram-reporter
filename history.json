@@ -18,5 +18,15 @@
       "price_change_24h": 10.52172,
       "market_cap": 1413902597697
     }
+  },
+  {
+    "date": "2026-02-06",
+    "asset": "BTC",
+    "metrics": {
+      "price_usd": 70766,
+      "volume_24h": 130846824107,
+      "price_change_24h": 10.50449,
+      "market_cap": 1413902597697
+    }
   }
 ]
