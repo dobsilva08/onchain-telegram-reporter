@@ -2,6 +2,7 @@ import json
 import os
 import requests
 from datetime import datetime
+import sys
 
 # =========================
 # CONFIG
@@ -9,8 +10,8 @@ from datetime import datetime
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-HISTORY_FILE = "history.json"
-SNAPSHOT_FILE = "snapshot.json"
+DATA_DIR = "data"
+SNAPSHOT_FILE = os.path.join(DATA_DIR, "snapshot.json")
 
 
 # =========================
@@ -28,30 +29,27 @@ def send_telegram_message(text: str):
 
 
 # =========================
-# LOAD DATA
+# LOAD SNAPSHOT (SAFE)
 # =========================
 def load_snapshot():
     if not os.path.exists(SNAPSHOT_FILE):
-        raise FileNotFoundError("snapshot.json não encontrado")
+        print("⚠ snapshot.json não encontrado. Collector pode ter falhado.")
+        sys.exit(0)  # sai sem quebrar o workflow
+
     with open(SNAPSHOT_FILE, "r") as f:
         return json.load(f)
 
 
 # =========================
-# SCORE ENGINE (SIMPLES E DETERMINÍSTICO)
+# SCORE ENGINE
 # =========================
 def calculate_score(m):
-    score = 50  # base neutra
+    score = 50
 
-    # Fluxo líquido negativo (saída de exchanges) → bullish
     netflow = m.get("exchange_netflow")
     if isinstance(netflow, (int, float)):
-        if netflow < 0:
-            score += 20
-        else:
-            score -= 10
+        score += 20 if netflow < 0 else -10
 
-    # Whale ratio
     whale_ratio = m.get("whale_ratio")
     if isinstance(whale_ratio, (int, float)):
         if whale_ratio < 0.6:
@@ -59,13 +57,9 @@ def calculate_score(m):
         elif whale_ratio > 0.85:
             score -= 15
 
-    # Variação positiva de preço
     price_change = m.get("price_change_24h")
     if isinstance(price_change, (int, float)):
-        if price_change > 0:
-            score += 15
-        elif price_change < 0:
-            score -= 15
+        score += 15 if price_change > 0 else -15
 
     return max(0, min(100, score))
 
@@ -89,7 +83,7 @@ def recommendation(score):
 
 
 # =========================
-# REPORT BUILDER
+# REPORT
 # =========================
 def build_report(m):
     date_str = datetime.utcnow().strftime("%d/%m/%Y")
@@ -99,7 +93,6 @@ def build_report(m):
     volume = m.get("volume_24h")
     market_cap = m.get("market_cap")
 
-    # Variação visual
     if isinstance(price_change, (int, float)):
         if price_change > 0:
             var_icon = "📈"
@@ -116,7 +109,7 @@ def build_report(m):
 
     score = calculate_score(m)
 
-    text = f"""
+    return f"""
 📊 *Dados On-Chain BTC — {date_str} — Diário*
 
 💰 *Preço:* ${price:,.0f}
@@ -129,8 +122,6 @@ def build_report(m):
 • *Viés de Mercado:* {market_bias(score)}
 • *Recomendação:* {recommendation(score)}
 """.strip()
-
-    return text
 
 
 # =========================
