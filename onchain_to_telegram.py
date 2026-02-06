@@ -9,7 +9,8 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # -----------------------------
-# SCORE (FASE 6.4 – SIMPLES E REAL)
+# SCORE ON-CHAIN (FASE 6.5)
+# Simples, realista e estável
 # -----------------------------
 
 def score_onchain(m):
@@ -25,6 +26,18 @@ def score_onchain(m):
         score += 20
 
     return min(score, 100)
+
+# -----------------------------
+# FORMATAÇÃO DE VARIAÇÃO
+# -----------------------------
+
+def format_variation(value):
+    if value > 0:
+        return f"📈 +{value:.2f}%"
+    elif value < 0:
+        return f"📉 {value:.2f}%"
+    else:
+        return "➖ 0.00%"
 
 # -----------------------------
 # TELEGRAM
@@ -44,31 +57,38 @@ def send_telegram(message):
 # -----------------------------
 
 def main():
+    if not os.path.exists(HISTORY_FILE):
+        raise FileNotFoundError("history.json não encontrado")
+
     with open(HISTORY_FILE, "r") as f:
         history = json.load(f)
+
+    if not history:
+        raise ValueError("history.json está vazio")
 
     last = history[-1]
     m = last["metrics"]
 
-    score = score_onchain(m)
+    asset = last.get("asset", "N/A")
+    date = last.get("date", datetime.utcnow().strftime("%Y-%m-%d"))
 
-    date = last["date"]
-    asset = last["asset"]
+    score = score_onchain(m)
+    variation_24h = format_variation(m.get("price_change_24h", 0))
 
     message = f"""
 📊 *Dados On-Chain {asset} — {date} — Diário*
 
-💰 *Preço:* ${m['price_usd']:,}
-📉 *Variação 24h:* {m['price_change_24h']:.2f}%
-📊 *Volume 24h:* ${m['volume_24h']:,}
-🏦 *Market Cap:* ${m['market_cap']:,}
+💰 *Preço:* ${m.get('price_usd', 0):,}
+📉 *Variação 24h:* {variation_24h}
+📊 *Volume 24h:* ${m.get('volume_24h', 0):,}
+🏦 *Market Cap:* ${m.get('market_cap', 0):,}
 
 📌 *Interpretação Executiva*
 • Score On-Chain: {score}/100
 • Status: Operacional
 """
 
-    send_telegram(message)
+    send_telegram(message.strip())
 
 if __name__ == "__main__":
     main()
