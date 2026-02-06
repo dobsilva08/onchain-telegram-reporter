@@ -1,153 +1,55 @@
-# collector.py
-# ==========================================================
-# FASE 6 — OPÇÃO A
-# Coletor on-chain REAL, gratuito, sem API key
-# Fonte principal: Blockchain.com (endpoint público)
-# ==========================================================
-
-import json
-import os
 import requests
-from datetime import datetime, timezone, timedelta
+import json
+from datetime import datetime
 
-# ----------------------------------------------------------
-# Configurações
-# ----------------------------------------------------------
+HISTORY_FILE = "history_metrics.json"
 
-METRICS_FILE = "metrics.json"
-BLOCKCHAIN_LARGE_TX = (
-    "https://api.blockchain.info/charts/large-transactions"
-    "?timespan=7days&format=json"
-)
+def fetch_json(url):
+    r = requests.get(url, timeout=15)
+    r.raise_for_status()
+    return r.json()
 
-BRT = timezone(timedelta(hours=-3))
+def collect_btc_metrics():
+    # Fontes públicas e gratuitas (Blockchain.com)
+    inflow = fetch_json(
+        "https://api.blockchain.info/charts/exchange-inflow?timespan=7days&format=json"
+    )["values"][-1]["y"]
 
-# ----------------------------------------------------------
-# Utilidades
-# ----------------------------------------------------------
+    netflow = fetch_json(
+        "https://api.blockchain.info/charts/exchange-netflow?timespan=1days&format=json"
+    )["values"][-1]["y"]
 
-def log(msg):
-    print(f"[collector] {msg}")
+    reserves = fetch_json(
+        "https://api.blockchain.info/charts/exchange-reserves?timespan=1days&format=json"
+    )["values"][-1]["y"]
 
-def load_previous_metrics():
-    if os.path.exists(METRICS_FILE):
-        try:
-            with open(METRICS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
-
-def save_metrics(data):
-    with open(METRICS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-# ----------------------------------------------------------
-# Coleta Blockchain.com (proxy de fluxo e baleias)
-# ----------------------------------------------------------
-
-def fetch_large_transactions():
-    try:
-        r = requests.get(BLOCKCHAIN_LARGE_TX, timeout=15)
-        r.raise_for_status()
-        raw = r.json()
-        return raw.get("values", [])
-    except Exception as e:
-        log(f"ERRO ao buscar large transactions: {e}")
-        return []
-
-# ----------------------------------------------------------
-# Processamento
-# ----------------------------------------------------------
-
-def compute_metrics_from_large_txs(values):
-    """
-    Usa grandes transações como proxy de:
-    - Exchange Inflow (MA7)
-    - Whale Inflow 24h
-    - Whale Ratio
-    """
-
-    if not values:
-        return None
-
-    # Ordena por data
-    values = sorted(values, key=lambda x: x["x"])
-
-    # Últimos 7 dias
-    volumes = [v["y"] for v in values if v.get("y") is not None]
-
-    if not volumes:
-        return None
-
-    # Proxy metrics
-    avg_7d = sum(volumes) / len(volumes)
-    last_24h = volumes[-1]
-
-    whale_ratio = round(last_24h / avg_7d, 2) if avg_7d > 0 else 0
-
-    # Percentil simples
-    sorted_vols = sorted(volumes)
-    position = sorted_vols.index(last_24h)
-    percentil = int(position / len(sorted_vols) * 100)
+    whale_ratio = fetch_json(
+        "https://api.blockchain.info/charts/whale-transaction-ratio?timespan=1days&format=json"
+    )["values"][-1]["y"]
 
     return {
-        "exchange_inflow": {
-            "ma7": int(avg_7d),
-            "avg_90d": int(avg_7d),  # proxy conservador
-            "percentil": percentil
-        },
-        "exchange_netflow": {
-            # proxy: saída se inflow abaixo da média
-            "value": int(-last_24h if last_24h < avg_7d else last_24h)
-        },
-        "exchange_reserve": {
-            # placeholder seguro (fase 7 melhora)
-            "current": 1_500_000,
-            "avg_180d": 1_600_000
-        },
-        "whale_inflow": {
-            "value_24h": int(last_24h),
-            "avg_30d": int(avg_7d)
-        },
-        "whale_ratio": {
-            "value": whale_ratio
-        },
-        "institutional": {
-            "etf_flow": 0
-        }
+        "date": datetime.utcnow().strftime("%Y-%m-%d"),
+        "asset": "BTC",
+        "exchange_inflow": round(inflow, 2),
+        "exchange_netflow": round(netflow, 2),
+        "exchange_reserves": round(reserves, 2),
+        "whale_ratio": round(whale_ratio, 2)
     }
 
-# ----------------------------------------------------------
-# MAIN
-# ----------------------------------------------------------
+def load_history():
+    try:
+        with open(HISTORY_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return []
 
-def main():
-    log("Iniciando coleta on-chain (FASE 6 — Opção A)")
-
-    previous = load_previous_metrics()
-    values = fetch_large_transactions()
-
-    metrics = compute_metrics_from_large_txs(values)
-
-    if metrics is None:
-        log("Falha na coleta — usando último snapshot válido")
-        if previous:
-            save_metrics(previous)
-            return
-        else:
-            log("Nenhum dado anterior disponível — abortando com zeros")
-            metrics = {
-                "exchange_inflow": {"ma7": 0, "avg_90d": 0, "percentil": 0},
-                "exchange_netflow": {"value": 0},
-                "exchange_reserve": {"current": 0, "avg_180d": 0},
-                "whale_inflow": {"value_24h": 0, "avg_30d": 0},
-                "whale_ratio": {"value": 0},
-                "institutional": {"etf_flow": 0}
-            }
-
-    save_metrics(metrics)
-    log("metrics.json gerado com sucesso")
+def save_history(entry):
+    history = load_history()
+    history.append(entry)
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(history, f, indent=2)
 
 if __name__ == "__main__":
-    main()
+    data = collect_btc_metrics()
+    save_history(data)
+    print("[collector] Dados coletados e salvos com sucesso")
