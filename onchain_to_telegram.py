@@ -1,47 +1,74 @@
 import json
 from datetime import datetime
-from telegram_utils import send_message
+import os
+import requests
 
-def load_last():
-    with open("history.json", "r") as f:
-        return json.load(f)[-1]
+HISTORY_FILE = "history.json"
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+# -----------------------------
+# SCORE (FASE 6.4 – SIMPLES E REAL)
+# -----------------------------
 
 def score_onchain(m):
-    score = 0
-    if m["exchange_netflow"] and m["exchange_netflow"] < 0:
-        score += 30
-    if m["exchange_reserves"]:
-        score += 30
-    if m["whale_ratio"] and m["whale_ratio"] < 1:
-        score += 40
-    return score
+    score = 50  # base neutra
+
+    if m.get("price_change_24h", 0) > 0:
+        score += 15
+
+    if m.get("volume_24h", 0) > 0:
+        score += 15
+
+    if m.get("market_cap", 0) > 0:
+        score += 20
+
+    return min(score, 100)
+
+# -----------------------------
+# TELEGRAM
+# -----------------------------
+
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    requests.post(url, json=payload, timeout=10)
+
+# -----------------------------
+# MAIN
+# -----------------------------
 
 def main():
-    data = load_last()
-    m = data["metrics"]
+    with open(HISTORY_FILE, "r") as f:
+        history = json.load(f)
+
+    last = history[-1]
+    m = last["metrics"]
+
     score = score_onchain(m)
 
-    msg = f"""
-📊 *Dados On-Chain BTC — {datetime.utcnow().strftime('%d/%m/%Y')} — Diário*
+    date = last["date"]
+    asset = last["asset"]
 
-1️⃣ *Exchange Inflow*
-{m['exchange_inflow']}
+    message = f"""
+📊 *Dados On-Chain {asset} — {date} — Diário*
 
-2️⃣ *Exchange Netflow*
-{m['exchange_netflow']}
-
-3️⃣ *Reservas em Exchanges*
-{m['exchange_reserves']}
-
-4️⃣ *Fluxos de Baleias*
-Whale Ratio: {round(m['whale_ratio'],2) if m['whale_ratio'] else 'N/A'}
+💰 *Preço:* ${m['price_usd']:,}
+📉 *Variação 24h:* {m['price_change_24h']:.2f}%
+📊 *Volume 24h:* ${m['volume_24h']:,}
+🏦 *Market Cap:* ${m['market_cap']:,}
 
 📌 *Interpretação Executiva*
 • Score On-Chain: {score}/100
-• Viés: {'Altista' if score >= 70 else 'Neutro'}
-• Recomendação: {'Acumular' if score >= 70 else 'Aguardar'}
+• Status: Operacional
 """
-    send_message(msg)
+
+    send_telegram(message)
 
 if __name__ == "__main__":
     main()
