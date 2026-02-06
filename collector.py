@@ -9,31 +9,31 @@ TIMEOUT = 10
 # UTIL
 # -----------------------------
 
-def safe_get(url):
+def fetch_json(url):
     r = requests.get(url, timeout=TIMEOUT)
     r.raise_for_status()
     return r.json()
 
 # -----------------------------
-# COINGECKO (FREE / ESTÁVEL)
+# COINGECKO (100% FREE)
 # -----------------------------
 
-def fetch_coingecko_market(asset_id):
+def fetch_market(asset_id):
     url = (
         "https://api.coingecko.com/api/v3/coins/markets"
         f"?vs_currency=usd&ids={asset_id}"
     )
-    data = safe_get(url)
+    data = fetch_json(url)
     return data[0] if data else None
 
 # -----------------------------
-# COLETA BTC (FASE 6.4)
+# COLETA BTC
 # -----------------------------
 
 def collect_btc_metrics():
-    market = fetch_coingecko_market("bitcoin")
+    market = fetch_market("bitcoin")
 
-    snapshot = {
+    return {
         "date": datetime.utcnow().strftime("%Y-%m-%d"),
         "asset": "BTC",
         "metrics": {
@@ -44,20 +44,15 @@ def collect_btc_metrics():
         }
     }
 
-    return snapshot
-
 # -----------------------------
-# HISTÓRICO (CORRIGIDO)
+# HISTÓRICO (BLINDADO)
 # -----------------------------
 
 def load_history():
     try:
         with open(HISTORY_FILE, "r") as f:
             data = json.load(f)
-            if isinstance(data, list):
-                return data
-            else:
-                return []  # CORREÇÃO CRÍTICA
+            return data if isinstance(data, list) else []
     except:
         return []
 
@@ -75,4 +70,4 @@ def save_history(snapshot):
 if __name__ == "__main__":
     snapshot = collect_btc_metrics()
     save_history(snapshot)
-    print("[OK] Coleta BTC concluída com sucesso")
+    print("[OK] Coleta BTC concluída")
