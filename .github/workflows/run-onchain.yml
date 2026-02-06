@@ -3,7 +3,9 @@ name: On-Chain BTC Reporter
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 9 * * *"   # 06:00 BRT ajuste se quiser
+    # Executa todos os dias às 12:15 UTC
+    # (06:15 BRT – horário de Brasília)
+    - cron: "09 00 * * *"
 
 jobs:
   run-onchain:
@@ -21,30 +23,24 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install requests
+        run: |
+          pip install requests
 
       - name: Collect on-chain data
-        run: python collector.py
+        run: |
+          python collector.py
 
       - name: Generate report and alerts
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python onchain_to_telegram.py
-
-      # ===============================
-      # 🔒 PERSISTÊNCIA DO HISTÓRICO
-      # ===============================
-
-      - name: Commit history.json
         run: |
-          if [ -f history.json ]; then
-            git config user.name "onchain-bot"
-            git config user.email "onchain-bot@users.noreply.github.com"
-            git add history.json
-            git diff --cached --quiet || git commit -m "Update on-chain history [auto]"
-            git push
-          else
-            echo "history.json não encontrado, nada para commitar."
-          fi
+          python onchain_to_telegram.py
 
+      - name: Commit updated history
+        run: |
+          git config user.name "onchain-bot"
+          git config user.email "onchain-bot@users.noreply.github.com"
+          git add history_metrics.json
+          git commit -m "Update on-chain history (auto)" || echo "No changes to commit"
+          git push
