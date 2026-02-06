@@ -1,5 +1,12 @@
-{
-  "last_recommendation": "Acumular",
-  "last_score": 100,
-  "last_date": "06/02/2026"
-}
+[
+  {
+    "date": "2026-02-06",
+    "asset": "BTC",
+    "metrics": {
+      "price_usd": 71416,
+      "volume_24h": 132180651526,
+      "price_change_24h": 10.52884,
+      "market_cap": 1430643875447
+    }
+  }
+]
