@@ -1,13 +1,25 @@
+from report_market import generate_market_report
+from report_onchain import generate_onchain_report
 from telegram_sender import send
-from market_report import generate_market_report
+
 
 def main():
-    message = generate_market_report()
+    messages = []
 
-    if not message or not isinstance(message, str):
-        raise RuntimeError("Relatório vazio ou inválido — nada para enviar ao Telegram")
+    market_report = generate_market_report()
+    if market_report:
+        messages.append(market_report)
 
-    send(message)
+    onchain_report = generate_onchain_report()
+    if onchain_report:
+        messages.append(onchain_report)
+
+    if not messages:
+        raise RuntimeError("Nenhum relatório foi gerado")
+
+    for msg in messages:
+        send(msg)
+
 
 if __name__ == "__main__":
     main()
