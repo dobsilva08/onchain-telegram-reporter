@@ -7,7 +7,6 @@ def send(message: str):
 
     if not token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN não definido nos secrets do GitHub")
-
     if not chat_id:
         raise RuntimeError("TELEGRAM_CHAT_ID não definido nos secrets do GitHub")
 
