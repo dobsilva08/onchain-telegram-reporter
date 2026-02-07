@@ -1,21 +1,23 @@
-import requests
 import os
+import requests
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+def send(message: str):
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
-def send(msg):
-    if not TOKEN:
-        raise RuntimeError("TELEGRAM_TOKEN não definido nos secrets do GitHub")
-    if not CHAT_ID:
+    if not token:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN não definido nos secrets do GitHub")
+
+    if not chat_id:
         raise RuntimeError("TELEGRAM_CHAT_ID não definido nos secrets do GitHub")
 
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
 
     payload = {
-        "chat_id": CHAT_ID,
-        "text": msg
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "HTML"
     }
 
-    r = requests.post(url, json=payload, timeout=15)
-    r.raise_for_status()
+    response = requests.post(url, json=payload, timeout=10)
+    response.raise_for_status()
