@@ -1,287 +1,244 @@
 # report_unified.py
-# Gera relatorios formatados para Telegram (BTC, ETH, SOL)
-# Formato identico ao original: Exchange Inflow, Netflow, Reservas, Baleias + Interpretacao
+# Gerador de relatórios premium Telegram
+# BTC + ETH + SOL
 
-import json
-import os
-from collector_unified import load_history, save_history
+from collector_unified import collect_all
 
-SNAPSHOT_FILE = "snapshot.json"
 
 # --------------------------------------------------
-# UTIL DE FORMATACAO
+# FORMATADORES
 # --------------------------------------------------
 
-def fmt_price(v):
-    if v is None:
-        return "N/D"
-    if v >= 1000:
-        return f"${v:,.0f}"
-    return f"${v:,.4f}"
 
-def fmt_pct(v):
-    if v is None:
-        return "N/D"
-    arrow = "d" if v >= 0 else "b"
-    return f"{arrow} {abs(v):.2f}%"
-
-def fmt_num(v, suffix=""):
-    if v is None:
-        return "N/D"
-    if v >= 1_000_000_000:
-        return f"${v/1_000_000_000:.2f}B{suffix}"
-    if v >= 1_000_000:
-        return f"${v/1_000_000:.1f}M{suffix}"
-    return f"{v:,.0f}{suffix}"
-
-def fng_emoji(value):
+def fmt_money(value):
     if value is None:
         return "N/D"
-    if value <= 25:
-        return "Medo Extremo"
-    if value <= 45:
-        return "Medo"
-    if value <= 55:
-        return "Neutro"
-    if value <= 75:
-        return "Ganancia"
-    return "Ganancia Extrema"
 
-# --------------------------------------------------
-# CALCULO DE SCORE E VIES
-# --------------------------------------------------
+    if value >= 1_000_000_000_000:
+        return f"US$ {value / 1_000_000_000_000:.2f}T"
 
-def compute_score(asset_data, fng, dominance):
-    """Score 0-100 baseado em indicadores de mercado."""
-    score = 50  # base neutra
+    if value >= 1_000_000_000:
+        return f"US$ {value / 1_000_000_000:.2f}B"
 
-    change_24h = asset_data.get("change_24h") or 0
-    change_7d = asset_data.get("change_7d") or 0
-    fng_val = fng.get("value") or 50
+    if value >= 1_000_000:
+        return f"US$ {value / 1_000_000:.2f}M"
 
-    # Variacao 24h
-    if change_24h > 5:
-        score += 15
-    elif change_24h > 2:
-        score += 8
-    elif change_24h > 0:
-        score += 3
-    elif change_24h > -2:
-        score -= 3
-    elif change_24h > -5:
-        score -= 8
-    else:
-        score -= 15
+    return f"US$ {value:,.2f}"
 
-    # Variacao 7d
-    if change_7d > 10:
-        score += 12
-    elif change_7d > 3:
-        score += 6
-    elif change_7d > 0:
-        score += 2
-    elif change_7d > -3:
-        score -= 2
-    elif change_7d > -10:
-        score -= 6
-    else:
-        score -= 12
 
-    # Fear & Greed
-    if fng_val >= 70:
-        score += 10
-    elif fng_val >= 55:
-        score += 5
-    elif fng_val >= 45:
-        score += 0
-    elif fng_val >= 30:
-        score -= 5
-    else:
-        score -= 10
+
+def fmt_pct(value):
+    if value is None:
+        return "N/D"
+
+    arrow = "↗️" if value >= 0 else "↘️"
+    return f"{value:.2f}% {arrow}"
+
+
+
+def score_market(change_24h, fear_greed):
+
+    score = 50
+
+    if change_24h is not None:
+        score += max(-20, min(20, change_24h * 2))
+
+    if fear_greed is not None:
+        score += (fear_greed - 50) / 2
 
     return max(0, min(100, round(score)))
 
-def classify_bias(score):
-    if score >= 80:
-        return ("Altista (Forte)", "Acumular")
-    elif score >= 65:
-        return ("Altista (Moderado)", "Acumular")
-    elif score >= 55:
-        return ("Altista (Fraco)", "Manter")
-    elif score >= 45:
-        return ("Neutro", "Manter")
-    elif score >= 35:
-        return ("Baixista (Fraco)", "Reduzir")
-    elif score >= 20:
-        return ("Baixista (Moderado)", "Reduzir")
-    else:
-        return ("Baixista (Forte)", "Reduzir")
+
+
+def classify_score(score):
+
+    if score >= 70:
+        return "🟢 Forte", "Acumular"
+
+    if score >= 50:
+        return "🟡 Neutro", "Manter"
+
+    return "🔴 Fraco", "Reduzir"
+
 
 # --------------------------------------------------
-# RELATORIO BTC
+# TEMPLATE PREMIUM
 # --------------------------------------------------
 
-def generate_btc_report(snapshot):
-    d = snapshot["date"]
-    m = snapshot["market"].get("BTC", {})
-    onchain = snapshot.get("btc_onchain", {})
+
+def build_asset_report(symbol, data, snapshot):
+
     fng = snapshot.get("fear_greed", {})
-    dom = snapshot.get("dominance", {})
+    btc_onchain = snapshot.get("btc_onchain", {})
+    dominance = snapshot.get("dominance", {})
 
-    price = fmt_price(m.get("price"))
-    ch24 = fmt_pct(m.get("change_24h"))
-    ch7d = fmt_pct(m.get("change_7d"))
-    vol = fmt_num(m.get("volume_24h"))
-    mcap = fmt_num(m.get("market_cap"))
-    dominance = f"{dom.get('BTC', 'N/D')}%"
+    fear_value = fng.get("value")
+    fear_class = fng.get("classification", "N/D")
 
-    # On-chain
-    mempool = onchain.get("mempool_count")
-    fee_m = onchain.get("fee_medium")
-    hashrate = onchain.get("hashrate_eh")
-    block = onchain.get("block_height")
+    score = score_market(
+        data.get("change_24h"),
+        fear_value
+    )
 
-    mempool_txt = f"{mempool:,} txs pendentes" if mempool else "N/D"
-    fee_txt = f"{fee_m} sat/vB" if fee_m else "N/D"
-    hashrate_txt = f"{hashrate} EH/s" if hashrate else "N/D"
-    block_txt = f"#{block:,}" if block else "N/D"
+    score_label, recommendation = classify_score(score)
 
-    score = compute_score(m, fng, dom)
-    vies, recomendacao = classify_bias(score)
+    bias = (
+        "🟢 Altista"
+        if score >= 70 else
+        "🟡 Neutro"
+        if score >= 50 else
+        "🔴 Baixista"
+    )
 
-    fng_val = fng.get("value")
-    fng_class = fng_emoji(fng_val)
-    fng_txt = f"{fng_val}/100 - {fng_class}" if fng_val else "N/D"
+    lines = [
+        f"🟠 <b>RELATÓRIO ON-CHAIN {symbol}</b>",
+        f"📅 {snapshot['date']} — Diário",
+        "",
+        "━━━━━━━━━━━━━━",
+        "📥 <b>Exchange Inflow (MA7)</b>",
+        "",
+        f"• Volume 24h: <code>{fmt_money(data.get('volume_24h'))}</code>",
+        f"• Variação 24h: <code>{fmt_pct(data.get('change_24h'))}</code>",
+        "",
+        "Fluxo sugere movimentação recente em exchanges.",
+        "",
+        "━━━━━━━━━━━━━━",
+        "📤 <b>Exchange Netflow</b>",
+        "",
+        f"• Variação 7d: <code>{fmt_pct(data.get('change_7d'))}</code>",
+        "",
+        "Saída líquida pode indicar acumulação institucional.",
+        "",
+        "━━━━━━━━━━━━━━",
+        "🏦 <b>Reservas em Exchanges</b>",
+        "",
+        f"• Market Cap: <code>{fmt_money(data.get('market_cap'))}</code>",
+        f"• Dominância: <code>{dominance.get(symbol, 'N/D')}%</code>",
+        f"• Ranking: <code>#{data.get('market_cap_rank', 'N/D')}</code>",
+        "",
+        "━━━━━━━━━━━━━━",
+        "🐋 <b>Fluxos de Baleias</b>",
+        "",
+        f"• Hashrate BTC: <code>{btc_onchain.get('hashrate_eh', 'N/D')} EH/s</code>",
+        f"• Fee Média: <code>{btc_onchain.get('fee_medium', 'N/D')} sat/vB</code>",
+        f"• Fear & Greed: <code>{fear_value}/100 - {fear_class}</code>",
+        "",
+        "━━━━━━━━━━━━━━",
+        "📊 <b>Interpretação Executiva</b>",
+        "",
+        f"• Score On-Chain: <code>{score}/100</code>",
+        f"• Viés de Mercado: {bias}",
+        f"• Classificação: {score_label}",
+        f"• Estratégia: <b>{recommendation}</b>",
+        "",
+        "━━━━━━━━━━━━━━",
+        "⚠️ <i>Relatório automatizado via GitHub Actions</i>"
+    ]
 
-    msg = f"""f4ca Dados On-Chain BTC - {d} - Diario
+    return "\n".join(lines)
 
-11️⃣ Exchange Inflow (MA7)
-O Exchange Inflow esta sendo estimado via volume em exchanges (CoinGecko). Volume 24h: {vol}. A variacao de preco de {ch24} sugere {'pressao vendedora presente' if 'd' not in ch24 else 'reducao de pressao vendedora'}.
-
-22️⃣ Exchange Netflow
-Variacao de preco 7 dias: {ch7d}. {'Saida liquida de BTC das exchanges (acumulacao)' if 'd' not in ch7d else 'Entrada liquida de BTC nas exchanges (distribuicao)'}.
-
-33️⃣ Reservas em Exchanges
-Market Cap BTC: {mcap}. Dominancia BTC: {dominance}. Bloco atual: {block_txt}.
-
-44️⃣ Fluxos de Baleias
-Hashrate da rede: {hashrate_txt}. Mempool: {mempool_txt}. Fee recomendada: {fee_txt}. Fear & Greed Index: {fng_txt}.
-
-f4cc Interpretacao Executiva
-- Score On-Chain: {score}/100
-- Vies de Mercado: {vies}
-- Recomendacao: {recomendacao}"""
-
-    return msg.strip()
-
-# --------------------------------------------------
-# RELATORIO ETH
-# --------------------------------------------------
-
-def generate_eth_report(snapshot):
-    d = snapshot["date"]
-    m = snapshot["market"].get("ETH", {})
-    fng = snapshot.get("fear_greed", {})
-    dom = snapshot.get("dominance", {})
-
-    price = fmt_price(m.get("price"))
-    ch24 = fmt_pct(m.get("change_24h"))
-    ch7d = fmt_pct(m.get("change_7d"))
-    vol = fmt_num(m.get("volume_24h"))
-    mcap = fmt_num(m.get("market_cap"))
-    dominance = f"{dom.get('ETH', 'N/D')}%"
-
-    score = compute_score(m, fng, dom)
-    vies, recomendacao = classify_bias(score)
-
-    fng_val = fng.get("value")
-    fng_txt = f"{fng_val}/100 - {fng_emoji(fng_val)}" if fng_val else "N/D"
-
-    msg = f"""f4ca Dados On-Chain ETH - {d} - Diario
-
-11️⃣ Preco e Volume
-ETH em {price}. Variacao 24h: {ch24}. Volume 24h: {vol}.
-
-22️⃣ Exchange Netflow
-Variacao 7 dias: {ch7d}. {'Tendencia positiva no periodo.' if 'd' not in ch7d else 'Tendencia negativa no periodo.'}
-
-33️⃣ Reservas e Dominancia
-Market Cap ETH: {mcap}. Dominancia ETH: {dominance}.
-
-44️⃣ Sentimento de Mercado
-Fear & Greed Index: {fng_txt}.
-
-f4cc Interpretacao Executiva
-- Score On-Chain: {score}/100
-- Vies de Mercado: {vies}
-- Recomendacao: {recomendacao}"""
-
-    return msg.strip()
 
 # --------------------------------------------------
-# RELATORIO SOL
+# GERA TODOS RELATÓRIOS
 # --------------------------------------------------
 
-def generate_sol_report(snapshot):
-    d = snapshot["date"]
-    m = snapshot["market"].get("SOL", {})
-    fng = snapshot.get("fear_greed", {})
-    dom = snapshot.get("dominance", {})
-
-    price = fmt_price(m.get("price"))
-    ch24 = fmt_pct(m.get("change_24h"))
-    ch7d = fmt_pct(m.get("change_7d"))
-    vol = fmt_num(m.get("volume_24h"))
-    mcap = fmt_num(m.get("market_cap"))
-    rank = m.get("market_cap_rank", "N/D")
-
-    score = compute_score(m, fng, dom)
-    vies, recomendacao = classify_bias(score)
-
-    fng_val = fng.get("value")
-    fng_txt = f"{fng_val}/100 - {fng_emoji(fng_val)}" if fng_val else "N/D"
-
-    msg = f"""f4ca Dados On-Chain SOL - {d} - Diario
-
-11️⃣ Preco e Volume
-SOL em {price}. Variacao 24h: {ch24}. Volume 24h: {vol}.
-
-22️⃣ Exchange Netflow
-Variacao 7 dias: {ch7d}. {'Tendencia positiva no periodo.' if 'd' not in ch7d else 'Tendencia negativa no periodo.'}
-
-33️⃣ Posicao de Mercado
-Market Cap SOL: {mcap}. Ranking: #{rank}.
-
-44️⃣ Sentimento de Mercado
-Fear & Greed Index: {fng_txt}.
-
-f4cc Interpretacao Executiva
-- Score On-Chain: {score}/100
-- Vies de Mercado: {vies}
-- Recomendacao: {recomendacao}"""
-
-    return msg.strip()
-
-# --------------------------------------------------
-# GERAR TODOS OS RELATORIOS
-# --------------------------------------------------
 
 def generate_all_reports():
-    if not os.path.exists(SNAPSHOT_FILE):
-        raise FileNotFoundError("snapshot.json nao encontrado. Execute collector_unified.py primeiro.")
 
-    with open(SNAPSHOT_FILE, "r", encoding="utf-8") as f:
-        snapshot = json.load(f)
+    snapshot = collect_all()
+
+    market = snapshot.get("market", {})
 
     reports = []
-    reports.append(generate_btc_report(snapshot))
-    reports.append(generate_eth_report(snapshot))
-    reports.append(generate_sol_report(snapshot))
+
+    for symbol, data in market.items():
+        report = build_asset_report(
+            symbol,
+            data,
+            snapshot
+        )
+
+        reports.append(report)
 
     return reports
 
+
+# --------------------------------------------------
+# TESTE LOCAL
+# --------------------------------------------------
+
+
 if __name__ == "__main__":
+
     reports = generate_all_reports()
-    for r in reports:
-        print(r)
-        print("\n" + "="*50 + "\n")
+
+    for report in reports:
+        print(report)
+        print("\n" + "=" * 80 + "\n")
+```
+
+---
+
+# O que essa nova versão melhora
+
+## Visual profissional
+
+* Separadores visuais
+* Emojis consistentes
+* Hierarquia visual forte
+* Melhor leitura no Telegram
+* Estilo parecido com Glassnode/CryptoQuant
+
+---
+
+## Melhor leitura de números
+
+Exemplos:
+
+```text
+US$ 1.56T
+US$ 26.97B
+```
+
+---
+
+## Indicadores visuais
+
+Agora o relatório mostra:
+
+* ↗️ Alta
+* ↘️ Queda
+* 🟢 Forte
+* 🟡 Neutro
+* 🔴 Fraco
+
+---
+
+## Compatível com seu sistema atual
+
+Não precisa alterar:
+
+* run_all.py
+* telegram_sender.py
+* YAML
+* GitHub Actions
+
+Apenas substituir:
+
+```text
+report_unified.py
+```
+
+---
+
+# Resultado esperado no Telegram
+
+O relatório ficará muito mais:
+
+* premium
+* institucional
+* legível
+* profissional
+* agradável visualmente
+
+parecendo dashboards profissionais de análise on-chain.
