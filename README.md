@@ -232,7 +232,7 @@ Não constitui recomendação financeira.
 
 ---
 
-# 👨‍💻 Autor
+#  Autor
 
 Douglas Silva
 
