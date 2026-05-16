@@ -1,0 +1,54 @@
+{
+  "date": "16/05/2026",
+  "time": "18:49 UTC",
+  "market": {
+    "BTC": {
+      "price": 78230,
+      "change_24h": -1.2302,
+      "change_7d": -2.978048277921667,
+      "volume_24h": 28776922500,
+      "market_cap": 1566934719056,
+      "market_cap_rank": 1,
+      "ath": 126080,
+      "ath_change_pct": -37.95229
+    },
+    "ETH": {
+      "price": 2179.31,
+      "change_24h": -2.09689,
+      "change_7d": -6.4249410347558475,
+      "volume_24h": 11283296480,
+      "market_cap": 263000742704,
+      "market_cap_rank": 2,
+      "ath": 4946.05,
+      "ath_change_pct": -55.93842
+    },
+    "SOL": {
+      "price": 86.77,
+      "change_24h": -3.36871,
+      "change_7d": -6.894392945584187,
+      "volume_24h": 2349014751,
+      "market_cap": 50158179364,
+      "market_cap_rank": 7,
+      "ath": 293.31,
+      "ath_change_pct": -70.41777
+    }
+  },
+  "dominance": {
+    "BTC": 58.32,
+    "ETH": 9.78
+  },
+  "btc_onchain": {
+    "hashrate_eh": 972.55,
+    "difficulty": 136607070854775.1,
+    "mempool_count": null,
+    "mempool_size_mb": null,
+    "fee_fast": 3,
+    "fee_medium": 3,
+    "fee_slow": 1,
+    "block_height": 949687
+  },
+  "fear_greed": {
+    "value": 31,
+    "classification": "Fear"
+  }
+}
