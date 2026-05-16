@@ -5,70 +5,36 @@ on:
       - cron: "15 9 * * *"
         workflow_dispatch:
 
-        jobs:
-          run:
-              runs-on: ubuntu-latest
-                  permissions:
-                        contents: write
+        permissions:
+          contents: write
 
-                            steps:
-                                  - name: Checkout repositorio
-                                          uses: actions/checkout@v4
+          jobs:
+            run:
+                runs-on: ubuntu-latest
+                    timeout-minutes: 15
 
-                                                - name: Configurar Python 3.11
-                                                        uses: actions/setup-python@v5
-                                                                with:
-                                                                          python-version: "3.11"
+                        steps:
+                              - name: Checkout repositorio
+                                      uses: actions/checkout@v4
 
-                                                                                - name: Instalar dependencias
-                                                                                        run: pip install -r requirements.txt
+                                            - name: Configurar Python 3.11
+                                                    uses: actions/setup-python@v5
+                                                            with:
+                                                                      python-version: "3.11"
 
-                                                                                              - name: Executar pipeline completo (BTC + ETH + SOL)
-                                                                                                      env:
-                                                                                                                TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-                                                                                                                          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-                                                                                                                                  run: python run_all.py
-                                                                                                                                  
-                                                                                                                                        - name: Salvar historico no repositorio
-                                                                                                                                                run: |
-                                                                                                                                                          git config user.name "github-actions[bot]"
-                                                                                                                                                                    git config user.email "github-actions[bot]@users.noreply.github.com"
-                                                                                                                                                                              git add history.json snapshot.json || true
-                                                                                                                                                                                        git diff --staged --quiet || git commit -m "chore: atualizar historico [skip ci]"
-                                                                                                                                                                                                  git push || truename: Crypto Reporter - BTC ETH SOL
-                                                                                                                                                                                                  
-                                                                                                                                                                                                  on:
-                                                                                                                                                                                                    schedule:
-                                                                                                                                                                                                        - cron: "15 9 * * *"  # 09:15 UTC = 06:15 BRT
-                                                                                                                                                                                                          workflow_dispatch:       # execucao manual
-                                                                                                                                                                                                          
-                                                                                                                                                                                                          jobs:
-                                                                                                                                                                                                            report:
-                                                                                                                                                                                                                runs-on: ubuntu-latest
-                                                                                                                                                                                                                    timeout-minutes: 15
-                                                                                                                                                                                                                    
-                                                                                                                                                                                                                        steps:
-                                                                                                                                                                                                                              - name: Checkout do repositorio
-                                                                                                                                                                                                                                      uses: actions/checkout@v4
-                                                                                                                                                                                                                                      
-                                                                                                                                                                                                                                            - name: Configurar Python 3.11
-                                                                                                                                                                                                                                                    uses: actions/setup-python@v5
-                                                                                                                                                                                                                                                            with:
-                                                                                                                                                                                                                                                                      python-version: "3.11"
-                                                                                                                                                                                                                                                                      
-                                                                                                                                                                                                                                                                            - name: Instalar dependencias
-                                                                                                                                                                                                                                                                                    run: pip install -r requirements.txt
-                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                          - name: Executar pipeline completo (coleta + relatorio + Telegram)
-                                                                                                                                                                                                                                                                                                  env:
-                                                                                                                                                                                                                                                                                                            TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-                                                                                                                                                                                                                                                                                                                      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-                                                                                                                                                                                                                                                                                                                              run: python run_all.py
-                                                                                                                                                                                                                                                                                                                              
-                                                                                                                                                                                                                                                                                                                                    - name: Salvar historico no repositorio
-                                                                                                                                                                                                                                                                                                                                            run: |
-                                                                                                                                                                                                                                                                                                                                                      git config --local user.email "github-actions[bot]@users.noreply.github.com"
-                                                                                                                                                                                                                                                                                                                                                                git config --local user.name "github-actions[bot]"
-                                                                                                                                                                                                                                                                                                                                                                          git add history.json snapshot.json || true
-                                                                                                                                                                                                                                                                                                                                                                                    git diff --staged --quiet || git commit -m "chore: atualizar historico [skip ci]"
-                                                                                                                                                                                                                                                                                                                                                                                              git push || true
+                                                                            - name: Instalar dependencias
+                                                                                    run: pip install -r requirements.txt
+
+                                                                                          - name: Executar pipeline (coleta + relatorio + Telegram)
+                                                                                                  env:
+                                                                                                            TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+                                                                                                                      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+                                                                                                                              run: python run_all.py
+                                                                                                                              
+                                                                                                                                    - name: Salvar historico no repositorio
+                                                                                                                                            run: |
+                                                                                                                                                      git config --local user.email "github-actions[bot]@users.noreply.github.com"
+                                                                                                                                                                git config --local user.name "github-actions[bot]"
+                                                                                                                                                                          git add history.json snapshot.json || true
+                                                                                                                                                                                    git diff --staged --quiet || git commit -m "chore: atualizar historico [skip ci]"
+                                                                                                                                                                                              git push || true
