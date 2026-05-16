@@ -9,8 +9,8 @@ from collector_unified import collect_all
 # FORMATADORES
 # --------------------------------------------------
 
-
 def fmt_money(value):
+
     if value is None:
         return "N/D"
 
@@ -26,14 +26,14 @@ def fmt_money(value):
     return f"US$ {value:,.2f}"
 
 
-
 def fmt_pct(value):
+
     if value is None:
         return "N/D"
 
     arrow = "↗️" if value >= 0 else "↘️"
-    return f"{value:.2f}% {arrow}"
 
+    return f"{value:.2f}% {arrow}"
 
 
 def score_market(change_24h, fear_greed):
@@ -47,7 +47,6 @@ def score_market(change_24h, fear_greed):
         score += (fear_greed - 50) / 2
 
     return max(0, min(100, round(score)))
-
 
 
 def classify_score(score):
@@ -64,7 +63,6 @@ def classify_score(score):
 # --------------------------------------------------
 # TEMPLATE PREMIUM
 # --------------------------------------------------
-
 
 def build_asset_report(symbol, data, snapshot):
 
@@ -94,43 +92,56 @@ def build_asset_report(symbol, data, snapshot):
         f"🟠 <b>RELATÓRIO ON-CHAIN {symbol}</b>",
         f"📅 {snapshot['date']} — Diário",
         "",
+
         "━━━━━━━━━━━━━━",
         "📥 <b>Exchange Inflow (MA7)</b>",
         "",
+
         f"• Volume 24h: <code>{fmt_money(data.get('volume_24h'))}</code>",
         f"• Variação 24h: <code>{fmt_pct(data.get('change_24h'))}</code>",
         "",
+
         "Fluxo sugere movimentação recente em exchanges.",
         "",
+
         "━━━━━━━━━━━━━━",
         "📤 <b>Exchange Netflow</b>",
         "",
+
         f"• Variação 7d: <code>{fmt_pct(data.get('change_7d'))}</code>",
         "",
+
         "Saída líquida pode indicar acumulação institucional.",
         "",
+
         "━━━━━━━━━━━━━━",
         "🏦 <b>Reservas em Exchanges</b>",
         "",
+
         f"• Market Cap: <code>{fmt_money(data.get('market_cap'))}</code>",
         f"• Dominância: <code>{dominance.get(symbol, 'N/D')}%</code>",
         f"• Ranking: <code>#{data.get('market_cap_rank', 'N/D')}</code>",
         "",
+
         "━━━━━━━━━━━━━━",
         "🐋 <b>Fluxos de Baleias</b>",
         "",
+
         f"• Hashrate BTC: <code>{btc_onchain.get('hashrate_eh', 'N/D')} EH/s</code>",
         f"• Fee Média: <code>{btc_onchain.get('fee_medium', 'N/D')} sat/vB</code>",
         f"• Fear & Greed: <code>{fear_value}/100 - {fear_class}</code>",
         "",
+
         "━━━━━━━━━━━━━━",
         "📊 <b>Interpretação Executiva</b>",
         "",
+
         f"• Score On-Chain: <code>{score}/100</code>",
         f"• Viés de Mercado: {bias}",
         f"• Classificação: {score_label}",
         f"• Estratégia: <b>{recommendation}</b>",
         "",
+
         "━━━━━━━━━━━━━━",
         "⚠️ <i>Relatório automatizado via GitHub Actions</i>"
     ]
@@ -142,7 +153,6 @@ def build_asset_report(symbol, data, snapshot):
 # GERA TODOS RELATÓRIOS
 # --------------------------------------------------
 
-
 def generate_all_reports():
 
     snapshot = collect_all()
@@ -152,6 +162,7 @@ def generate_all_reports():
     reports = []
 
     for symbol, data in market.items():
+
         report = build_asset_report(
             symbol,
             data,
@@ -167,7 +178,6 @@ def generate_all_reports():
 # TESTE LOCAL
 # --------------------------------------------------
 
-
 if __name__ == "__main__":
 
     reports = generate_all_reports()
@@ -175,70 +185,3 @@ if __name__ == "__main__":
     for report in reports:
         print(report)
         print("\n" + "=" * 80 + "\n")
-```
-
----
-
-# O que essa nova versão melhora
-
-## Visual profissional
-
-* Separadores visuais
-* Emojis consistentes
-* Hierarquia visual forte
-* Melhor leitura no Telegram
-* Estilo parecido com Glassnode/CryptoQuant
-
----
-
-## Melhor leitura de números
-
-Exemplos:
-
-```text
-US$ 1.56T
-US$ 26.97B
-```
-
----
-
-## Indicadores visuais
-
-Agora o relatório mostra:
-
-* ↗️ Alta
-* ↘️ Queda
-* 🟢 Forte
-* 🟡 Neutro
-* 🔴 Fraco
-
----
-
-## Compatível com seu sistema atual
-
-Não precisa alterar:
-
-* run_all.py
-* telegram_sender.py
-* YAML
-* GitHub Actions
-
-Apenas substituir:
-
-```text
-report_unified.py
-```
-
----
-
-# Resultado esperado no Telegram
-
-O relatório ficará muito mais:
-
-* premium
-* institucional
-* legível
-* profissional
-* agradável visualmente
-
-parecendo dashboards profissionais de análise on-chain.
