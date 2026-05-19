@@ -1,54 +1,54 @@
 {
-  "date": "18/05/2026",
-  "time": "12:47 UTC",
+  "date": "19/05/2026",
+  "time": "12:19 UTC",
   "market": {
     "BTC": {
-      "price": 77709,
-      "change_24h": -0.90468,
-      "change_7d": -3.9954368981696278,
-      "volume_24h": 33100825632,
-      "market_cap": 1555886872303,
+      "price": 76731,
+      "change_24h": -0.87044,
+      "change_7d": -4.83898319330993,
+      "volume_24h": 38209994690,
+      "market_cap": 1536666827839,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -38.36564
+      "ath_change_pct": -39.14098
     },
     "ETH": {
-      "price": 2154.46,
-      "change_24h": -1.8391,
-      "change_7d": -7.709821042740166,
-      "volume_24h": 14557482429,
-      "market_cap": 259919243667,
+      "price": 2112.6,
+      "change_24h": -1.51603,
+      "change_7d": -7.560776288034472,
+      "volume_24h": 16155343038,
+      "market_cap": 254855106067,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -56.44069
+      "ath_change_pct": -57.28713
     },
     "SOL": {
-      "price": 85.69,
-      "change_24h": -1.37686,
-      "change_7d": -9.973906212470686,
-      "volume_24h": 2808402415,
-      "market_cap": 49515977531,
+      "price": 84.51,
+      "change_24h": -0.79404,
+      "change_7d": -10.998178017697272,
+      "volume_24h": 2603335005,
+      "market_cap": 48875923295,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -70.78468
+      "ath_change_pct": -71.18609
     }
   },
   "dominance": {
-    "BTC": 58.31,
-    "ETH": 9.73
+    "BTC": 58.21,
+    "ETH": 9.65
   },
   "btc_onchain": {
-    "hashrate_eh": 958.5,
+    "hashrate_eh": 963.8,
     "difficulty": 136607070854775.1,
     "mempool_count": null,
     "mempool_size_mb": null,
-    "fee_fast": 3,
+    "fee_fast": 2,
     "fee_medium": 1,
     "fee_slow": 1,
-    "block_height": 949941
+    "block_height": 950075
   },
   "fear_greed": {
-    "value": 28,
-    "classification": "Fear"
+    "value": 25,
+    "classification": "Extreme Fear"
   }
 }
