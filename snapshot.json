@@ -1,54 +1,54 @@
 {
-  "date": "19/05/2026",
-  "time": "12:19 UTC",
+  "date": "20/05/2026",
+  "time": "12:02 UTC",
   "market": {
     "BTC": {
-      "price": 76731,
-      "change_24h": -0.87044,
-      "change_7d": -4.83898319330993,
-      "volume_24h": 38209994690,
-      "market_cap": 1536666827839,
+      "price": 77338,
+      "change_24h": 0.86007,
+      "change_7d": -4.277953215039098,
+      "volume_24h": 26806374927,
+      "market_cap": 1548557069901,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -39.14098
+      "ath_change_pct": -38.65925
     },
     "ETH": {
-      "price": 2112.6,
-      "change_24h": -1.51603,
-      "change_7d": -7.560776288034472,
-      "volume_24h": 16155343038,
-      "market_cap": 254855106067,
+      "price": 2126.63,
+      "change_24h": 0.77199,
+      "change_7d": -7.5856400469725305,
+      "volume_24h": 10335980697,
+      "market_cap": 256483925405,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -57.28713
+      "ath_change_pct": -57.00352
     },
     "SOL": {
-      "price": 84.51,
-      "change_24h": -0.79404,
-      "change_7d": -10.998178017697272,
-      "volume_24h": 2603335005,
-      "market_cap": 48875923295,
+      "price": 84.62,
+      "change_24h": 0.30777,
+      "change_7d": -10.698630995370316,
+      "volume_24h": 1820197880,
+      "market_cap": 48882247058,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -71.18609
+      "ath_change_pct": -71.14861
     }
   },
   "dominance": {
-    "BTC": 58.21,
-    "ETH": 9.65
+    "BTC": 58.34,
+    "ETH": 9.66
   },
   "btc_onchain": {
-    "hashrate_eh": 963.8,
+    "hashrate_eh": 982.84,
     "difficulty": 136607070854775.1,
     "mempool_count": null,
     "mempool_size_mb": null,
     "fee_fast": 2,
     "fee_medium": 1,
     "fee_slow": 1,
-    "block_height": 950075
+    "block_height": 950230
   },
   "fear_greed": {
-    "value": 25,
-    "classification": "Extreme Fear"
+    "value": 27,
+    "classification": "Fear"
   }
 }
