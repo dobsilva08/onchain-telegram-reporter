@@ -1,54 +1,54 @@
 {
-  "date": "20/05/2026",
-  "time": "12:02 UTC",
+  "date": "21/05/2026",
+  "time": "12:26 UTC",
   "market": {
     "BTC": {
-      "price": 77338,
-      "change_24h": 0.86007,
-      "change_7d": -4.277953215039098,
-      "volume_24h": 26806374927,
-      "market_cap": 1548557069901,
+      "price": 77063,
+      "change_24h": -0.46307,
+      "change_7d": -2.7765697315762625,
+      "volume_24h": 29184237638,
+      "market_cap": 1543846892128,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -38.65925
+      "ath_change_pct": -38.87745
     },
     "ETH": {
-      "price": 2126.63,
-      "change_24h": 0.77199,
-      "change_7d": -7.5856400469725305,
-      "volume_24h": 10335980697,
-      "market_cap": 256483925405,
+      "price": 2111.57,
+      "change_24h": -0.81403,
+      "change_7d": -6.3304745520619905,
+      "volume_24h": 12790757998,
+      "market_cap": 254833208951,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -57.00352
+      "ath_change_pct": -57.30793
     },
     "SOL": {
-      "price": 84.62,
-      "change_24h": 0.30777,
-      "change_7d": -10.698630995370316,
-      "volume_24h": 1820197880,
-      "market_cap": 48882247058,
+      "price": 85.51,
+      "change_24h": 1.08189,
+      "change_7d": -5.6592318385921585,
+      "volume_24h": 3288566023,
+      "market_cap": 49410560573,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -71.14861
+      "ath_change_pct": -70.84521
     }
   },
   "dominance": {
-    "BTC": 58.34,
-    "ETH": 9.66
+    "BTC": 58.19,
+    "ETH": 9.6
   },
   "btc_onchain": {
-    "hashrate_eh": 982.84,
+    "hashrate_eh": 975.82,
     "difficulty": 136607070854775.1,
     "mempool_count": null,
     "mempool_size_mb": null,
-    "fee_fast": 2,
+    "fee_fast": 1,
     "fee_medium": 1,
     "fee_slow": 1,
-    "block_height": 950230
+    "block_height": 950368
   },
   "fear_greed": {
-    "value": 27,
+    "value": 29,
     "classification": "Fear"
   }
 }
