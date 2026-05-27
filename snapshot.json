@@ -1,54 +1,54 @@
 {
-  "date": "25/05/2026",
-  "time": "12:43 UTC",
+  "date": "27/05/2026",
+  "time": "12:31 UTC",
   "market": {
     "BTC": {
-      "price": 77278,
-      "change_24h": 0.3322,
-      "change_7d": 0.6796484445547486,
-      "volume_24h": 24112214879,
-      "market_cap": 1548198193896,
+      "price": 75827,
+      "change_24h": -1.47682,
+      "change_7d": -1.9269151194545038,
+      "volume_24h": 37318414809,
+      "market_cap": 1518369500601,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -38.70743
+      "ath_change_pct": -39.85783
     },
     "ETH": {
-      "price": 2114.48,
-      "change_24h": -0.20163,
-      "change_7d": 0.01796758847454764,
-      "volume_24h": 10519180919,
-      "market_cap": 255169324206,
+      "price": 2081.98,
+      "change_24h": -1.59421,
+      "change_7d": -2.195129968502717,
+      "volume_24h": 14038980475,
+      "market_cap": 251158835827,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -57.24917
+      "ath_change_pct": -57.90616
     },
     "SOL": {
-      "price": 85.87,
-      "change_24h": -0.42713,
-      "change_7d": 1.889324206325338,
-      "volume_24h": 2460550960,
-      "market_cap": 49657516320,
+      "price": 84.22,
+      "change_24h": -0.82453,
+      "change_7d": -0.44510364951901754,
+      "volume_24h": 2527902841,
+      "market_cap": 48638834139,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -70.72344
+      "ath_change_pct": -71.28653
     }
   },
   "dominance": {
-    "BTC": 58.21,
-    "ETH": 9.6
+    "BTC": 57.94,
+    "ETH": 9.59
   },
   "btc_onchain": {
-    "hashrate_eh": 982.39,
+    "hashrate_eh": 989.72,
     "difficulty": 136607070854775.1,
     "mempool_count": null,
     "mempool_size_mb": null,
     "fee_fast": 2,
     "fee_medium": 1,
     "fee_slow": 1,
-    "block_height": 950955
+    "block_height": 951256
   },
   "fear_greed": {
-    "value": 30,
-    "classification": "Fear"
+    "value": 25,
+    "classification": "Extreme Fear"
   }
 }
