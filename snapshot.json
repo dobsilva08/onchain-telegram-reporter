@@ -1,54 +1,54 @@
 {
-  "date": "09/06/2026",
-  "time": "12:14 UTC",
+  "date": "10/06/2026",
+  "time": "12:35 UTC",
   "market": {
     "BTC": {
-      "price": 62720,
-      "change_24h": -0.34921,
-      "change_7d": -9.855852552934339,
-      "volume_24h": 33537764609,
-      "market_cap": 1257873878350,
+      "price": 61680,
+      "change_24h": -1.40419,
+      "change_7d": -7.908870224954202,
+      "volume_24h": 34227479284,
+      "market_cap": 1235638723363,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -50.25337
+      "ath_change_pct": -51.07852
     },
     "ETH": {
-      "price": 1676.26,
-      "change_24h": 0.16246,
-      "change_7d": -15.37422518152966,
-      "volume_24h": 14793577097,
-      "market_cap": 202424678371,
+      "price": 1636.27,
+      "change_24h": -2.34858,
+      "change_7d": -12.761444922861031,
+      "volume_24h": 13739957003,
+      "market_cap": 197524844769,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -66.10609
+      "ath_change_pct": -66.91754
     },
     "SOL": {
-      "price": 66.34,
-      "change_24h": 0.12542,
-      "change_7d": -16.289721628506722,
-      "volume_24h": 3182528387,
-      "market_cap": 38454356123,
+      "price": 64.04,
+      "change_24h": -3.33435,
+      "change_7d": -14.592959281112197,
+      "volume_24h": 2843142977,
+      "market_cap": 37085928611,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -77.38295
+      "ath_change_pct": -78.16818
     }
   },
   "dominance": {
-    "BTC": 56.03,
-    "ETH": 8.99
+    "BTC": 55.96,
+    "ETH": 8.95
   },
   "btc_onchain": {
-    "hashrate_eh": 858.08,
+    "hashrate_eh": 854.57,
     "difficulty": 138955357012247.3,
     "mempool_count": null,
     "mempool_size_mb": null,
-    "fee_fast": 4,
-    "fee_medium": 3,
+    "fee_fast": 2,
+    "fee_medium": 1,
     "fee_slow": 1,
-    "block_height": 952965
+    "block_height": 953102
   },
   "fear_greed": {
-    "value": 10,
+    "value": 9,
     "classification": "Extreme Fear"
   }
 }
