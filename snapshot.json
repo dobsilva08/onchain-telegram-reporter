@@ -1,54 +1,54 @@
 {
-  "date": "13/06/2026",
-  "time": "11:23 UTC",
+  "date": "14/06/2026",
+  "time": "11:36 UTC",
   "market": {
     "BTC": {
-      "price": 63915,
-      "change_24h": 0.23319,
-      "change_7d": 5.606220902452962,
-      "volume_24h": 22417405271,
-      "market_cap": 1281087182799,
+      "price": 64582,
+      "change_24h": 1.11082,
+      "change_7d": 3.5682463840798215,
+      "volume_24h": 17886893220,
+      "market_cap": 1294346738386,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -49.3056
+      "ath_change_pct": -48.77696
     },
     "ETH": {
-      "price": 1676.79,
-      "change_24h": 0.07467,
-      "change_7d": 8.460958226712739,
-      "volume_24h": 8184773395,
-      "market_cap": 202347977436,
+      "price": 1675.4,
+      "change_24h": -0.07071,
+      "change_7d": 2.606378450106468,
+      "volume_24h": 5313428120,
+      "market_cap": 202199557222,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -66.09845
+      "ath_change_pct": -66.12648
     },
     "SOL": {
-      "price": 67.79,
-      "change_24h": 1.3518,
-      "change_7d": 9.83893133650571,
-      "volume_24h": 2426909737,
-      "market_cap": 39283371207,
+      "price": 68.25,
+      "change_24h": 0.62704,
+      "change_7d": 5.68687411327277,
+      "volume_24h": 1613901518,
+      "market_cap": 39555386565,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -76.88818
+      "ath_change_pct": -76.73257
     }
   },
   "dominance": {
-    "BTC": 56.43,
-    "ETH": 8.91
+    "BTC": 56.65,
+    "ETH": 8.85
   },
   "btc_onchain": {
-    "hashrate_eh": 889.23,
-    "difficulty": 138955357012247.3,
+    "hashrate_eh": 875.46,
+    "difficulty": 124932866006548.2,
     "mempool_count": null,
     "mempool_size_mb": null,
-    "fee_fast": 2,
-    "fee_medium": 1,
+    "fee_fast": 3,
+    "fee_medium": 3,
     "fee_slow": 1,
-    "block_height": 953503
+    "block_height": 953624
   },
   "fear_greed": {
-    "value": 13,
+    "value": 18,
     "classification": "Extreme Fear"
   }
 }
