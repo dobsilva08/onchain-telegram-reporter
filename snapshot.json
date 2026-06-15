@@ -1,54 +1,54 @@
 {
-  "date": "14/06/2026",
-  "time": "11:36 UTC",
+  "date": "15/06/2026",
+  "time": "15:24 UTC",
   "market": {
     "BTC": {
-      "price": 64582,
-      "change_24h": 1.11082,
-      "change_7d": 3.5682463840798215,
-      "volume_24h": 17886893220,
-      "market_cap": 1294346738386,
+      "price": 66631,
+      "change_24h": 4.04255,
+      "change_7d": 4.152157851987952,
+      "volume_24h": 33700817831,
+      "market_cap": 1335705395626,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -48.77696
+      "ath_change_pct": -47.15136
     },
     "ETH": {
-      "price": 1675.4,
-      "change_24h": -0.07071,
-      "change_7d": 2.606378450106468,
-      "volume_24h": 5313428120,
-      "market_cap": 202199557222,
+      "price": 1815.84,
+      "change_24h": 9.26339,
+      "change_7d": 7.37659570822197,
+      "volume_24h": 15361936835,
+      "market_cap": 219108622571,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -66.12648
+      "ath_change_pct": -63.28694
     },
     "SOL": {
-      "price": 68.25,
-      "change_24h": 0.62704,
-      "change_7d": 5.68687411327277,
-      "volume_24h": 1613901518,
-      "market_cap": 39555386565,
+      "price": 73.86,
+      "change_24h": 9.65619,
+      "change_7d": 10.285451278786354,
+      "volume_24h": 2665514747,
+      "market_cap": 42835305118,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -76.73257
+      "ath_change_pct": -74.81806
     }
   },
   "dominance": {
-    "BTC": 56.65,
-    "ETH": 8.85
+    "BTC": 56.42,
+    "ETH": 9.26
   },
   "btc_onchain": {
-    "hashrate_eh": 875.46,
+    "hashrate_eh": 900.25,
     "difficulty": 124932866006548.2,
     "mempool_count": null,
     "mempool_size_mb": null,
-    "fee_fast": 3,
+    "fee_fast": 4,
     "fee_medium": 3,
-    "fee_slow": 1,
-    "block_height": 953624
+    "fee_slow": 3,
+    "block_height": 953800
   },
   "fear_greed": {
-    "value": 18,
+    "value": 20,
     "classification": "Extreme Fear"
   }
 }
