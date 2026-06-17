@@ -1,54 +1,54 @@
 {
-  "date": "16/06/2026",
-  "time": "14:26 UTC",
+  "date": "17/06/2026",
+  "time": "12:56 UTC",
   "market": {
     "BTC": {
-      "price": 65628,
-      "change_24h": -1.2799,
-      "change_7d": 5.285876907429593,
-      "volume_24h": 29976285015,
-      "market_cap": 1314607408746,
+      "price": 64946,
+      "change_24h": -2.15825,
+      "change_7d": 5.870499363264586,
+      "volume_24h": 25732341205,
+      "market_cap": 1301645423089,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -47.94755
+      "ath_change_pct": -48.4884
     },
     "ETH": {
-      "price": 1777.73,
-      "change_24h": -1.78146,
-      "change_7d": 6.448196580956685,
-      "volume_24h": 17489385019,
-      "market_cap": 214189477333,
+      "price": 1757.12,
+      "change_24h": -3.09174,
+      "change_7d": 7.991140913434551,
+      "volume_24h": 11656247992,
+      "market_cap": 212027990974,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -64.0576
+      "ath_change_pct": -64.47426
     },
     "SOL": {
-      "price": 73.14,
-      "change_24h": -0.5427,
-      "change_7d": 10.726045463928015,
-      "volume_24h": 2890740418,
-      "market_cap": 42515034992,
+      "price": 72.16,
+      "change_24h": -3.48784,
+      "change_7d": 13.396537302245214,
+      "volume_24h": 2223738281,
+      "market_cap": 41841183248,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -75.06408
+      "ath_change_pct": -75.39888
     }
   },
   "dominance": {
-    "BTC": 56.36,
-    "ETH": 9.22
+    "BTC": 56.12,
+    "ETH": 9.23
   },
   "btc_onchain": {
-    "hashrate_eh": 923.79,
+    "hashrate_eh": 924.82,
     "difficulty": 124932866006548.2,
     "mempool_count": null,
     "mempool_size_mb": null,
-    "fee_fast": 1,
-    "fee_medium": 1,
+    "fee_fast": 3,
+    "fee_medium": 3,
     "fee_slow": 1,
-    "block_height": 953956
+    "block_height": 954095
   },
   "fear_greed": {
-    "value": 23,
+    "value": 22,
     "classification": "Extreme Fear"
   }
 }
