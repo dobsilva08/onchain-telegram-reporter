@@ -1,54 +1,54 @@
 {
-  "date": "01/07/2026",
-  "time": "12:16 UTC",
+  "date": "02/07/2026",
+  "time": "11:41 UTC",
   "market": {
     "BTC": {
-      "price": 58390,
-      "change_24h": -0.97229,
-      "change_7d": -7.0454186724197605,
-      "volume_24h": 33575881564,
-      "market_cap": 1170568260825,
+      "price": 61208,
+      "change_24h": 4.47366,
+      "change_7d": -0.006701263898294519,
+      "volume_24h": 43905014513,
+      "market_cap": 1227391065331,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -53.68784
+      "ath_change_pct": -51.45326
     },
     "ETH": {
-      "price": 1566.39,
-      "change_24h": -0.26017,
-      "change_7d": -6.565480385343669,
-      "volume_24h": 9402832639,
-      "market_cap": 189003507856,
+      "price": 1643.55,
+      "change_24h": 4.64429,
+      "change_7d": 0.5586112302444818,
+      "volume_24h": 11536630309,
+      "market_cap": 198372591952,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -68.33055
+      "ath_change_pct": -66.77042
     },
     "SOL": {
-      "price": 74.51,
-      "change_24h": 2.14368,
-      "change_7d": 6.731531146941516,
-      "volume_24h": 3147965485,
-      "market_cap": 43280338715,
+      "price": 82.23,
+      "change_24h": 9.86366,
+      "change_7d": 20.483081908341703,
+      "volume_24h": 4041436740,
+      "market_cap": 47798614735,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -74.59839
+      "ath_change_pct": -71.9644
     }
   },
   "dominance": {
-    "BTC": 55.34,
-    "ETH": 8.93
+    "BTC": 55.79,
+    "ETH": 9.02
   },
   "btc_onchain": {
-    "hashrate_eh": 966.67,
+    "hashrate_eh": 956.78,
     "difficulty": 133869853540305.4,
     "mempool_count": null,
     "mempool_size_mb": null,
-    "fee_fast": 1,
+    "fee_fast": 2,
     "fee_medium": 1,
     "fee_slow": 1,
-    "block_height": 956213
+    "block_height": 956351
   },
   "fear_greed": {
-    "value": 11,
+    "value": 19,
     "classification": "Extreme Fear"
   }
 }
