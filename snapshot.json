@@ -1,54 +1,54 @@
 {
-  "date": "07/07/2026",
-  "time": "12:08 UTC",
+  "date": "08/07/2026",
+  "time": "11:14 UTC",
   "market": {
     "BTC": {
-      "price": 63607,
-      "change_24h": 2.65815,
-      "change_7d": 7.27961725513524,
-      "volume_24h": 36978897649,
-      "market_cap": 1274660464443,
+      "price": 62071,
+      "change_24h": -1.61421,
+      "change_7d": 5.442940465968707,
+      "volume_24h": 33241195839,
+      "market_cap": 1244776636455,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -49.5504
+      "ath_change_pct": -50.76864
     },
     "ETH": {
-      "price": 1786.13,
-      "change_24h": 2.65113,
-      "change_7d": 13.384178432186763,
-      "volume_24h": 16673050052,
-      "market_cap": 215373180731,
+      "price": 1736.67,
+      "change_24h": -1.94971,
+      "change_7d": 9.975039528120462,
+      "volume_24h": 10655790456,
+      "market_cap": 209587469051,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -63.88769
+      "ath_change_pct": -64.88766
     },
     "SOL": {
-      "price": 81.47,
-      "change_24h": 1.89688,
-      "change_7d": 10.67990442482237,
-      "volume_24h": 2662319839,
-      "market_cap": 47404110656,
+      "price": 77.21,
+      "change_24h": -4.46598,
+      "change_7d": 2.496297009929753,
+      "volume_24h": 2507689743,
+      "market_cap": 44921686064,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -72.22423
+      "ath_change_pct": -73.67764
     }
   },
   "dominance": {
-    "BTC": 55.84,
-    "ETH": 9.44
+    "BTC": 55.97,
+    "ETH": 9.42
   },
   "btc_onchain": {
-    "hashrate_eh": 921.44,
+    "hashrate_eh": 915.55,
     "difficulty": 133869853540305.4,
     "mempool_count": null,
     "mempool_size_mb": null,
     "fee_fast": 2,
     "fee_medium": 1,
     "fee_slow": 1,
-    "block_height": 957035
+    "block_height": 957165
   },
   "fear_greed": {
-    "value": 27,
-    "classification": "Fear"
+    "value": 20,
+    "classification": "Extreme Fear"
   }
 }
