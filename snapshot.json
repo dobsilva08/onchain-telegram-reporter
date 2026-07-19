@@ -1,54 +1,54 @@
 {
-  "date": "18/07/2026",
-  "time": "10:37 UTC",
+  "date": "19/07/2026",
+  "time": "10:41 UTC",
   "market": {
     "BTC": {
-      "price": 63964,
-      "change_24h": 1.38597,
-      "change_7d": -0.21857598293852598,
-      "volume_24h": 20710896902,
-      "market_cap": 1282978461864,
+      "price": 64595,
+      "change_24h": 1.00362,
+      "change_7d": 1.0172967240211195,
+      "volume_24h": 15714625150,
+      "market_cap": 1295524760182,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -49.26706
+      "ath_change_pct": -48.76638
     },
     "ETH": {
-      "price": 1844.76,
-      "change_24h": 0.40724,
-      "change_7d": 2.492904599008281,
-      "volume_24h": 6581515491,
-      "market_cap": 222647480137,
+      "price": 1867.12,
+      "change_24h": 1.30335,
+      "change_7d": 3.6445042466793898,
+      "volume_24h": 4952067007,
+      "market_cap": 225301217424,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -62.70238
+      "ath_change_pct": -62.25027
     },
     "SOL": {
-      "price": 74.88,
-      "change_24h": 0.20549,
-      "change_7d": -4.083847226929816,
-      "volume_24h": 1265260188,
-      "market_cap": 43614774527,
+      "price": 76.06,
+      "change_24h": 1.66277,
+      "change_7d": -0.7538376557299,
+      "volume_24h": 1101372292,
+      "market_cap": 44312008601,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -74.4722
+      "ath_change_pct": -74.06933
     }
   },
   "dominance": {
-    "BTC": 56.43,
-    "ETH": 9.79
+    "BTC": 56.5,
+    "ETH": 9.83
   },
   "btc_onchain": {
-    "hashrate_eh": 893.02,
+    "hashrate_eh": 928.56,
     "difficulty": 127170500429035.2,
     "mempool_count": null,
     "mempool_size_mb": null,
     "fee_fast": 1,
     "fee_medium": 1,
     "fee_slow": 1,
-    "block_height": 958538
+    "block_height": 958719
   },
   "fear_greed": {
-    "value": 25,
-    "classification": "Extreme Fear"
+    "value": 28,
+    "classification": "Fear"
   }
 }
