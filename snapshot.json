@@ -1,54 +1,54 @@
 {
-  "date": "07/08/2026",
-  "time": "10:08 UTC",
+  "date": "08/08/2026",
+  "time": "09:50 UTC",
   "market": {
     "BTC": {
-      "price": 64797,
-      "change_24h": -0.1,
-      "change_7d": 1.6,
-      "volume_24h": 18674030301,
-      "market_cap": 1300270724099,
+      "price": 64973,
+      "change_24h": 1.1,
+      "change_7d": 3.1,
+      "volume_24h": 19711823195,
+      "market_cap": 1303871824988,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -48.60646
+      "ath_change_pct": -48.46672
     },
     "ETH": {
-      "price": 1912.6,
-      "change_24h": -0.1,
-      "change_7d": 1.2,
-      "volume_24h": 7203898108,
-      "market_cap": 230816192811,
+      "price": 1918.34,
+      "change_24h": 0.8,
+      "change_7d": 2.6,
+      "volume_24h": 6520015489,
+      "market_cap": 231526848682,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -61.33079
+      "ath_change_pct": -61.2147
     },
     "SOL": {
-      "price": 73.66,
-      "change_24h": -0.4,
-      "change_7d": -0.1,
-      "volume_24h": 1339738030,
-      "market_cap": 42876329052,
+      "price": 74.83,
+      "change_24h": 2.5,
+      "change_7d": 2.5,
+      "volume_24h": 1556823634,
+      "market_cap": 43557464638,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -74.88539
+      "ath_change_pct": -74.48781
     }
   },
   "dominance": {
-    "BTC": 56.74,
-    "ETH": 10.07
+    "BTC": 56.75,
+    "ETH": 10.08
   },
   "btc_onchain": {
-    "hashrate_eh": 923.12,
+    "hashrate_eh": 914.05,
     "difficulty": 126231507121868.2,
     "mempool_count": null,
     "mempool_size_mb": null,
-    "fee_fast": 3,
+    "fee_fast": 1,
     "fee_medium": 1,
     "fee_slow": 1,
-    "block_height": 961414
+    "block_height": 961565
   },
   "fear_greed": {
-    "value": 29,
+    "value": 30,
     "classification": "Fear"
   }
 }
