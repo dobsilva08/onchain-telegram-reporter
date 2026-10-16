@@ -1,54 +1,54 @@
 {
-  "date": "15/10/2026",
-  "time": "14:07 UTC",
+  "date": "16/10/2026",
+  "time": "13:55 UTC",
   "market": {
     "BTC": {
-      "price": 80497,
-      "change_24h": -2.07158,
-      "change_7d": -2.5718,
-      "volume_24h": 38908018847,
-      "market_cap": 1617165302630,
+      "price": 81745,
+      "change_24h": 2.36638,
+      "change_7d": -1.4172,
+      "volume_24h": 30430088609,
+      "market_cap": 1642505639368,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -36.15371
+      "ath_change_pct": -35.1639
     },
     "ETH": {
-      "price": 2351.6,
-      "change_24h": -3.70011,
-      "change_7d": -7.5423,
-      "volume_24h": 18297027102,
-      "market_cap": 287003035906,
+      "price": 2450.64,
+      "change_24h": 5.34175,
+      "change_7d": -1.6757,
+      "volume_24h": 13973765128,
+      "market_cap": 299212325259,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -52.45487
+      "ath_change_pct": -50.45257
     },
     "SOL": {
-      "price": 102.04,
-      "change_24h": -2.59133,
-      "change_7d": -9.7707,
-      "volume_24h": 3943770262,
-      "market_cap": 60063556695,
+      "price": 105.26,
+      "change_24h": 4.15615,
+      "change_7d": -5.0726,
+      "volume_24h": 3096902258,
+      "market_cap": 62020052767,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -65.21198
+      "ath_change_pct": -64.11245
     }
   },
   "dominance": {
-    "BTC": 59.41,
-    "ETH": 10.53
+    "BTC": 59.19,
+    "ETH": 10.78
   },
   "btc_onchain": {
-    "hashrate_eh": 1028.99,
-    "difficulty": 132716002350731.3,
+    "hashrate_eh": 1027.04,
+    "difficulty": 140577680051919.6,
     "mempool_count": null,
     "mempool_size_mb": null,
-    "fee_fast": 1,
-    "fee_medium": 1,
+    "fee_fast": 4,
+    "fee_medium": 3,
     "fee_slow": 1,
-    "block_height": 971583
+    "block_height": 971715
   },
   "fear_greed": {
-    "value": 53,
-    "classification": "Neutral"
+    "value": 63,
+    "classification": "Greed"
   }
 }
