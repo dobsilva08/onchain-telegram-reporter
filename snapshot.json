@@ -1,54 +1,54 @@
 {
-  "date": "29/10/2026",
-  "time": "16:02 UTC",
+  "date": "30/10/2026",
+  "time": "15:51 UTC",
   "market": {
     "BTC": {
-      "price": 81711,
-      "change_24h": 1.53264,
-      "change_7d": -0.1474,
-      "volume_24h": 30405732783,
-      "market_cap": 1642872076944,
+      "price": 77374,
+      "change_24h": -5.25773,
+      "change_7d": -5.8984,
+      "volume_24h": 178908341783,
+      "market_cap": 1555632478174,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -35.19128
+      "ath_change_pct": -38.63097
     },
     "ETH": {
-      "price": 2366.43,
-      "change_24h": 1.48846,
-      "change_7d": -1.8537,
-      "volume_24h": 11708781757,
-      "market_cap": 289142315163,
+      "price": 2225.64,
+      "change_24h": -5.87828,
+      "change_7d": -7.3678,
+      "volume_24h": 26991787662,
+      "market_cap": 271916428742,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -52.15521
+      "ath_change_pct": -55.00163
     },
     "SOL": {
-      "price": 102.56,
-      "change_24h": 1.60889,
-      "change_7d": -1.9622,
-      "volume_24h": 3126090249,
-      "market_cap": 60521736926,
+      "price": 94.38,
+      "change_24h": -7.80876,
+      "change_7d": -10.08,
+      "volume_24h": 5856768798,
+      "market_cap": 55689730657,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -65.03209
+      "ath_change_pct": -67.8216
     }
   },
   "dominance": {
-    "BTC": 59.54,
-    "ETH": 10.48
+    "BTC": 59.29,
+    "ETH": 10.36
   },
   "btc_onchain": {
-    "hashrate_eh": 1080.06,
-    "difficulty": 140577680051919.6,
+    "hashrate_eh": 1047.87,
+    "difficulty": 148364561003867.4,
     "mempool_count": null,
     "mempool_size_mb": null,
     "fee_fast": 4,
-    "fee_medium": 1,
-    "fee_slow": 1,
-    "block_height": 973708
+    "fee_medium": 4,
+    "fee_slow": 3,
+    "block_height": 973840
   },
   "fear_greed": {
-    "value": 51,
-    "classification": "Neutral"
+    "value": 30,
+    "classification": "Fear"
   }
 }
