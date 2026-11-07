@@ -1,54 +1,54 @@
 {
-  "date": "06/11/2026",
-  "time": "16:42 UTC",
+  "date": "07/11/2026",
+  "time": "15:37 UTC",
   "market": {
     "BTC": {
-      "price": 75595,
-      "change_24h": -1.38248,
-      "change_7d": -1.8602,
-      "volume_24h": 36511318133,
-      "market_cap": 1520662467919,
+      "price": 75726,
+      "change_24h": 0.59449,
+      "change_7d": -2.0244,
+      "volume_24h": 15982156359,
+      "market_cap": 1522780015316,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -40.04174
+      "ath_change_pct": -39.93819
     },
     "ETH": {
-      "price": 2223.99,
-      "change_24h": -2.0539,
-      "change_7d": -0.3484,
-      "volume_24h": 13445304643,
-      "market_cap": 271868397766,
+      "price": 2238.25,
+      "change_24h": 1.11201,
+      "change_7d": -0.2291,
+      "volume_24h": 5615555460,
+      "market_cap": 273509128630,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -55.03489
+      "ath_change_pct": -54.74673
     },
     "SOL": {
-      "price": 90.26,
-      "change_24h": -0.40007,
-      "change_7d": -4.0646,
-      "volume_24h": 3079371647,
-      "market_cap": 53312310549,
+      "price": 89.43,
+      "change_24h": -0.70755,
+      "change_7d": -6.0911,
+      "volume_24h": 1177173088,
+      "market_cap": 52850927078,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -69.22818
+      "ath_change_pct": -69.51062
     }
   },
   "dominance": {
-    "BTC": 59.11,
-    "ETH": 10.57
+    "BTC": 59.32,
+    "ETH": 10.65
   },
   "btc_onchain": {
-    "hashrate_eh": 1031.29,
+    "hashrate_eh": 1006.98,
     "difficulty": 148364561003867.4,
     "mempool_count": null,
     "mempool_size_mb": null,
-    "fee_fast": 5,
-    "fee_medium": 5,
-    "fee_slow": 4,
-    "block_height": 974825
+    "fee_fast": 3,
+    "fee_medium": 1,
+    "fee_slow": 1,
+    "block_height": 974946
   },
   "fear_greed": {
-    "value": 28,
-    "classification": "Fear"
+    "value": 25,
+    "classification": "Extreme Fear"
   }
 }
