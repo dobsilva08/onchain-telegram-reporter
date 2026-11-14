@@ -1,54 +1,54 @@
 {
-  "date": "12/11/2026",
-  "time": "17:31 UTC",
+  "date": "14/11/2026",
+  "time": "15:45 UTC",
   "market": {
     "BTC": {
-      "price": 71969,
-      "change_24h": -3.322,
-      "change_7d": -5.5629,
-      "volume_24h": 29203614925,
-      "market_cap": 1447092987518,
+      "price": 65627,
+      "change_24h": -3.83499,
+      "change_7d": -13.1915,
+      "volume_24h": 33527239899,
+      "market_cap": 1319882361818,
       "market_cap_rank": 1,
       "ath": 126080,
-      "ath_change_pct": -42.91787
+      "ath_change_pct": -47.9478
     },
     "ETH": {
-      "price": 2012.91,
-      "change_24h": -3.75363,
-      "change_7d": -10.8067,
-      "volume_24h": 10605548481,
-      "market_cap": 245971921385,
+      "price": 1838.53,
+      "change_24h": -4.12086,
+      "change_7d": -17.4732,
+      "volume_24h": 12220660830,
+      "market_cap": 224702704424,
       "market_cap_rank": 2,
       "ath": 4946.05,
-      "ath_change_pct": -59.30256
+      "ath_change_pct": -62.82827
     },
     "SOL": {
-      "price": 81.51,
-      "change_24h": -4.5021,
-      "change_7d": -9.5757,
-      "volume_24h": 2193992342,
-      "market_cap": 48209054090,
+      "price": 73.78,
+      "change_24h": -6.77392,
+      "change_7d": -17.7386,
+      "volume_24h": 3379557139,
+      "market_cap": 43649061998,
       "market_cap_rank": 7,
       "ath": 293.31,
-      "ath_change_pct": -72.20951
+      "ath_change_pct": -74.84429
     }
   },
   "dominance": {
-    "BTC": 59.63,
-    "ETH": 10.14
+    "BTC": 58.69,
+    "ETH": 9.99
   },
   "btc_onchain": {
-    "hashrate_eh": 937.28,
-    "difficulty": 148364561003867.4,
+    "hashrate_eh": 904.15,
+    "difficulty": 134823837323272.7,
     "mempool_count": null,
     "mempool_size_mb": null,
-    "fee_fast": 3,
-    "fee_medium": 3,
+    "fee_fast": 2,
+    "fee_medium": 1,
     "fee_slow": 1,
-    "block_height": 975576
+    "block_height": 975813
   },
   "fear_greed": {
-    "value": 28,
-    "classification": "Fear"
+    "value": 13,
+    "classification": "Extreme Fear"
   }
 }
