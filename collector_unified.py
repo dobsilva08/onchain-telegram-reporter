@@ -2,6 +2,7 @@
 # Coleta dados de mercado reais para BTC, ETH e SOL
 
 import requests
+from onchain_metrics import collect_new_metrics
 import json
 import os
 from datetime import datetime, timezone
@@ -196,6 +197,8 @@ def collect_all():
 
     print("[4/4] Coletando Fear & Greed...")
     fng = fetch_fear_greed()
+    print("[5/5] Coletando MVRV/SOPR e stablecoin liquidity...")
+    new_metrics = collect_new_metrics()
 
     snapshot = {
         "date": date_str,
@@ -203,7 +206,8 @@ def collect_all():
         "market": market,
         "dominance": dominance,
         "btc_onchain": btc_onchain,
-        "fear_greed": fng
+        "fear_greed": fng,
+        "new_metrics": new_metrics
     }
 
     with open("snapshot.json", "w", encoding="utf-8") as f:
