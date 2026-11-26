@@ -94,6 +94,24 @@ def build_asset_report(symbol, data, snapshot):
         f"• Estratégia: <b>{recommendation}</b>", "",
         "━━━━━━━━━━━━━━", "⚠️ <i>Relatório automatizado via GitHub Actions</i>",
     ]
+    if symbol == "BTC":
+        metrics = snapshot.get("new_metrics", {})
+        vp = metrics.get("valuation_profitability", {})
+        liq = metrics.get("stablecoin_liquidity", {})
+        lines.extend([
+            "", "━━━━━━━━━━━━━━", "🧭 <b>Valuation & Realização (BTC)</b>", "",
+            f"• MVRV Z-Score: <code>{vp.get('mvrv_zscore') if vp.get('mvrv_zscore') is not None else 'N/D'}</code>",
+            f"• SOPR diário: <code>{vp.get('sopr') if vp.get('sopr') is not None else 'N/D'}</code>",
+            f"• SOPR média 7d: <code>{vp.get('sopr_7d') if vp.get('sopr_7d') is not None else 'N/D'}</code>",
+            f"• Fonte: {vp.get('source', 'N/D')} — KOTE_API_KEY necessária para MVRV/SOPR.", "",
+            "━━━━━━━━━━━━━━", "💧 <b>Liquidez em Stablecoins</b>", "",
+            f"• Oferta agregada: <code>{fmt_money(liq.get('total_usd'))}</code>",
+            f"• Variação 30d: <code>{fmt_pct(liq.get('change_30d_pct'))}</code>",
+            f"• Data da série: <code>{liq.get('date', 'N/D')}</code>",
+            "• Fonte: DeFiLlama (API pública)",
+            "• Liquidez em stablecoins não implica fluxo direto para BTC.",
+            "• Dados on-chain contextualizam; não são sinais automáticos.",
+        ])
     return "\n".join(lines)
 
 
