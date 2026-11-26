@@ -1,10 +1,6 @@
 name: Crypto On-Chain Reporter
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - '.github/workflows/run-onchain.yml'
   schedule:
     - cron: "12 9 * * *" # 06:12 BRT
   workflow_dispatch:
