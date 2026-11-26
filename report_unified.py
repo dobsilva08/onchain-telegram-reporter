@@ -103,7 +103,7 @@ def build_asset_report(symbol, data, snapshot):
             f"• MVRV Z-Score: <code>{vp.get('mvrv_zscore') if vp.get('mvrv_zscore') is not None else 'N/D'}</code>",
             f"• SOPR diário: <code>{vp.get('sopr') if vp.get('sopr') is not None else 'N/D'}</code>",
             f"• SOPR média 7d: <code>{vp.get('sopr_7d') if vp.get('sopr_7d') is not None else 'N/D'}</code>",
-            f"• Fonte: {vp.get('source', 'N/D')} — KOTE_API_KEY necessária para MVRV/SOPR.", "",
+            f"• Fonte: {vp.get('source', 'N/D')} — KOTE_API_KEY necessária para MVRV/SOPR.",\n            "• Atribuição: Kote Charts — https://kotecharts.com/c/mvrv-z-score e https://kotecharts.com/c/sopr", "
             "━━━━━━━━━━━━━━", "💧 <b>Liquidez em Stablecoins</b>", "",
             f"• Oferta agregada: <code>{fmt_money(liq.get('total_usd'))}</code>",
             f"• Variação 30d: <code>{fmt_pct(liq.get('change_30d_pct'))}</code>",
