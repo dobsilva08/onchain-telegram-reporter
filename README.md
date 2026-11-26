@@ -144,6 +144,7 @@ O projeto utiliza:
 ```text
 TELEGRAM_BOT_TOKEN
 TELEGRAM_CHAT_ID
+KOTE_API_KEY (optional — Kote Charts MVRV/SOPR)
 ```
 
 Configure no GitHub Secrets:
@@ -238,3 +239,12 @@ Douglas Silva
 
 GitHub:
 https://github.com/dobsilva08
+
+
+## Novos indicadores (BTC)
+
+- MVRV Z-Score e SOPR diário/média de 7 dias via Kote Charts API. Uso gratuito não comercial com atribuição; requer chave gratuita em KOTE_API_KEY. Sem chave, indicadores aparecem como N/D.
+- Oferta agregada de stablecoins e variação aproximada em 30 dias via API pública DeFiLlama, sem chave.
+- Fonte Kote Charts: https://kotecharts.com/c/mvrv-z-score e https://kotecharts.com/c/sopr (atribuição no relatório).
+- Fonte stablecoins: DeFiLlama https://stablecoins.llama.fi/stablecoincharts/all
+- Kote Charts exige atribuição e licença não comercial; uso comercial requer autorização. 
