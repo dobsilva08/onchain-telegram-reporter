@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Standalone daily BTC On-Chain Intelligence report. Does not modify the legacy pipeline."""
 import os
+import tempfile
+import matplotlib.pyplot as plt
+from telegram_sender import send_photo
 from datetime import datetime, timezone
 from onchain_metrics import collect_new_metrics
 from telegram_sender import send
@@ -68,11 +71,37 @@ def build_report(data):
     return "\n".join(lines)
 
 
+
+
+def generate_mvrv_chart(series, current_value):
+    if not isinstance(series, list) or len(series) < 2: return None
+    points=[]
+    for p in series:
+        if not isinstance(p,dict): continue
+        v=p.get("value",p.get("zscore",p.get("zScore",p.get("mvrvZ"))))
+        t=p.get("t",p.get("timestamp",p.get("date")))
+        if isinstance(v,(int,float)) and t is not None: points.append((t,float(v)))
+    if len(points)<2:return None
+    points.sort(key=lambda x:str(x[0])); dates=[str(x[0]) for x in points]; vals=[x[1] for x in points]
+    plt.figure(figsize=(11,5),facecolor="#111111"); ax=plt.gca(); ax.set_facecolor("#111111")
+    ax.plot(range(len(vals)),vals,color="#D4AF37",linewidth=1.8,label="MVRV Z-Score")
+    ax.axhline(0,color="red",linestyle="--",linewidth=1.5,label="Referência 0")
+    ax.scatter([len(vals)-1],[vals[-1]],color="white",s=45,zorder=4)
+    ax.annotate(f"Atual: {current_value}",(len(vals)-1,vals[-1]),xytext=(-60,12),textcoords="offset points",color="white")
+    ax.set_title("Bitcoin — MVRV Z-Score",color="white");ax.set_ylabel("Z-Score",color="white");ax.tick_params(colors="white");ax.grid(alpha=.2)
+    for sp in ax.spines.values():sp.set_color("#555555")
+    ax.legend(facecolor="#222222",labelcolor="white");ax.set_xticks([0,len(vals)//2,len(vals)-1]);ax.set_xticklabels([dates[0],dates[len(dates)//2],dates[-1]],color="white")
+    plt.tight_layout();path=os.path.join(tempfile.gettempdir(),"mvrv_chart.png");plt.savefig(path,dpi=160);plt.close();return path
+
+
 def main():
     print("Coletando indicadores independentes...")
     data = collect_new_metrics()
     message = build_report(data)
     print(message)
+    vp=data.get('valuation_profitability',{}) or {}
+    chart=generate_mvrv_chart(vp.get('mvrv_series'),vp.get('mvrv_zscore'))
+    if chart: send_photo(chart,'📊 <b>BTC — MVRV Z-Score</b>\\nLinha vermelha tracejada: referência 0.')
     send(message)
     print("Relatório enviado ao Telegram.")
 
