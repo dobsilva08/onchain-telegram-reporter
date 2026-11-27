@@ -137,8 +137,6 @@ def generate_mvrv_chart(series, current_value):
         ax.plot(dates, rolling, color="#A78BFA", linewidth=1.4, label="Média móvel 365d")
     ax.axhline(0, color="red", linestyle="--", linewidth=1.5, label="Referência 0")
     ax.scatter([dates[-1]], [vals[-1]], color="white", s=45, zorder=4)
-    ax.annotate(f"Atual: {current_value}", (dates[-1], vals[-1]), xytext=(-60, 12),
-                textcoords="offset points", color="white")
     ax.set_ylim(-5, 10)
     ax.set_ylabel("MVRV Z-Score", color="#D4AF37")
     ax.tick_params(axis="y", colors="#D4AF37")
@@ -156,11 +154,11 @@ def generate_mvrv_chart(series, current_value):
             sp.set_color("#555555")
         lines, labels = ax.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
-        ax.legend(lines + lines2, labels + labels2, loc="upper left", facecolor="#222222", labelcolor="white")
+        ax.legend(lines + lines2, labels + labels2, loc="upper left", bbox_to_anchor=(0, 0.90), facecolor="#222222", labelcolor="white")
     else:
-        ax.legend(loc="upper left", facecolor="#222222", labelcolor="white")
+        ax.legend(loc="upper left", bbox_to_anchor=(0, 0.90), facecolor="#222222", labelcolor="white")
 
-    ax.set_title("Bitcoin — Preço BTC/USD × MVRV Z-Score", color="white")
+    ax.text(0.015, 0.985, f"MVRV Atual: {float(current_value):.3f}" if isinstance(current_value, (int, float)) else f"MVRV Atual: {current_value}", transform=ax.transAxes, va="top", ha="left", color="#D4AF37", fontsize=12, fontweight="bold", bbox=dict(boxstyle="round,pad=0.35", facecolor="#222222", edgecolor="#D4AF37", alpha=0.95))\n    ax.set_title("Bitcoin — Preço BTC/USD × MVRV Z-Score", color="white")
     ax.tick_params(axis="x", colors="white")
     fig.autofmt_xdate()
     plt.tight_layout()
