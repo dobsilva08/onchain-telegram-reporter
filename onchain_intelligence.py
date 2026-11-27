@@ -176,7 +176,7 @@ def main():
     print(message)
     vp=data.get('valuation_profitability',{}) or {}
     chart=generate_mvrv_chart(vp.get('mvrv_series'),vp.get('mvrv_zscore'))
-    if chart: send_photo(chart,'📊 <b>BTC — Preço × MVRV Z-Score</b>\\nDourado: MVRV; roxo: média 365d; verde: preço BTC/USD; vermelho tracejado: zero.')
+    if chart: send_photo(chart,'📊 <b>BTC — Preço × MVRV Z-Score</b>')
     send(message)
     print("Relatório enviado ao Telegram.")
 
