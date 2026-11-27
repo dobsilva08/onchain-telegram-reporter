@@ -88,7 +88,7 @@ def generate_mvrv_chart(series, current_value):
     ax.axhline(0,color="red",linestyle="--",linewidth=1.5,label="Referência 0")
     ax.scatter([len(vals)-1],[vals[-1]],color="white",s=45,zorder=4)
     ax.annotate(f"Atual: {current_value}",(len(vals)-1,vals[-1]),xytext=(-60,12),textcoords="offset points",color="white")
-    ax.set_title("Bitcoin — MVRV Z-Score",color="white");ax.set_ylabel("Z-Score",color="white");ax.tick_params(colors="white");ax.grid(alpha=.2)
+    ax.set_ylim(-5,10)  # escala fixa para evitar que picos historicos distorcam a leitura\n    ax.set_title("Bitcoin — MVRV Z-Score",color="white");ax.set_ylabel("Z-Score",color="white");ax.tick_params(colors="white");ax.grid(alpha=.2)
     for sp in ax.spines.values():sp.set_color("#555555")
     ax.legend(facecolor="#222222",labelcolor="white");ax.set_xticks([0,len(vals)//2,len(vals)-1]);ax.set_xticklabels([dates[0],dates[len(dates)//2],dates[-1]],color="white")
     plt.tight_layout();path=os.path.join(tempfile.gettempdir(),"mvrv_chart.png");plt.savefig(path,dpi=160);plt.close();return path
