@@ -74,24 +74,79 @@ def build_report(data):
 
 
 def generate_mvrv_chart(series, current_value):
-    if not isinstance(series, list) or len(series) < 2: return None
-    points=[]
+    if not isinstance(series, list) or len(series) < 2:
+        return None
+    points = []
     for p in series:
-        if not isinstance(p,dict): continue
-        v=p.get("value",p.get("zscore",p.get("zScore",p.get("mvrvZ"))))
-        t=p.get("t",p.get("timestamp",p.get("date")))
-        if isinstance(v,(int,float)) and t is not None: points.append((t,float(v)))
-    if len(points)<2:return None
-    points.sort(key=lambda x:str(x[0])); dates=[str(x[0]) for x in points]; vals=[x[1] for x in points]
-    plt.figure(figsize=(11,5),facecolor="#111111"); ax=plt.gca(); ax.set_facecolor("#111111")
-    ax.plot(range(len(vals)),vals,color="#D4AF37",linewidth=1.8,label="MVRV Z-Score")
-    ax.axhline(0,color="red",linestyle="--",linewidth=1.5,label="Referência 0")
-    ax.scatter([len(vals)-1],[vals[-1]],color="white",s=45,zorder=4)
-    ax.annotate(f"Atual: {current_value}",(len(vals)-1,vals[-1]),xytext=(-60,12),textcoords="offset points",color="white")
-    ax.set_ylim(-5,10)  # escala fixa para evitar que picos historicos distorcam a leitura\n    ax.set_title("Bitcoin — MVRV Z-Score",color="white");ax.set_ylabel("Z-Score",color="white");ax.tick_params(colors="white");ax.grid(alpha=.2)
-    for sp in ax.spines.values():sp.set_color("#555555")
-    ax.legend(facecolor="#222222",labelcolor="white");ax.set_xticks([0,len(vals)//2,len(vals)-1]);ax.set_xticklabels([dates[0],dates[len(dates)//2],dates[-1]],color="white")
-    plt.tight_layout();path=os.path.join(tempfile.gettempdir(),"mvrv_chart.png");plt.savefig(path,dpi=160);plt.close();return path
+        if not isinstance(p, dict):
+            continue
+        v = p.get("value", p.get("zscore", p.get("zScore", p.get("mvrvZ"))))
+        t = p.get("t", p.get("timestamp", p.get("date")))
+        if isinstance(v, (int, float)) and t is not None:
+            try:
+                if isinstance(t, (int, float)):
+                    dt = datetime.fromtimestamp(t / 1000 if t > 1e11 else t, tz=timezone.utc)
+                else:
+                    dt = datetime.fromisoformat(str(t).replace("Z", "+00:00"))
+                points.append((dt, float(v)))
+            except Exception:
+                continue
+    if len(points) < 2:
+        return None
+    points.sort(key=lambda x: x[0])
+    dates = [x[0] for x in points]
+    vals = [x[1] for x in points]
+
+    # Best-effort public BTC/USD history; chart remains useful if price API is unavailable.
+    price_dates, prices = [], []
+    try:
+        payload = requests.get(
+            "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart",
+            params={"vs_currency": "usd", "days": "max", "interval": "daily"},
+            timeout=20,
+        )
+        payload.raise_for_status()
+        price_data = payload.json().get("prices", [])
+        price_dates = [datetime.fromtimestamp(p[0] / 1000, tz=timezone.utc) for p in price_data if len(p) >= 2]
+        prices = [p[1] for p in price_data if len(p) >= 2]
+    except Exception as exc:
+        print(f"[CHART] BTC price history unavailable: {exc}")
+
+    fig, ax = plt.subplots(figsize=(11, 5), facecolor="#111111")
+    ax.set_facecolor("#111111")
+    ax.plot(dates, vals, color="#D4AF37", linewidth=1.8, label="MVRV Z-Score")
+    ax.axhline(0, color="red", linestyle="--", linewidth=1.5, label="Referência 0")
+    ax.scatter([dates[-1]], [vals[-1]], color="white", s=45, zorder=4)
+    ax.annotate(f"Atual: {current_value}", (dates[-1], vals[-1]), xytext=(-60, 12),
+                textcoords="offset points", color="white")
+    ax.set_ylim(-5, 10)
+    ax.set_ylabel("MVRV Z-Score", color="#D4AF37")
+    ax.tick_params(axis="y", colors="#D4AF37")
+    ax.grid(alpha=.2)
+    for sp in ax.spines.values():
+        sp.set_color("#555555")
+
+    if price_dates and prices:
+        ax2 = ax.twinx()
+        ax2.plot(price_dates, prices, color="#3B82F6", linewidth=1.3, alpha=.85, label="BTC/USD")
+        ax2.set_ylabel("Preço BTC (USD)", color="#3B82F6")
+        ax2.tick_params(axis="y", colors="#3B82F6")
+        for sp in ax2.spines.values():
+            sp.set_color("#555555")
+        lines, labels = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(lines + lines2, labels + labels2, loc="upper left", facecolor="#222222", labelcolor="white")
+    else:
+        ax.legend(loc="upper left", facecolor="#222222", labelcolor="white")
+
+    ax.set_title("Bitcoin — Preço BTC/USD × MVRV Z-Score", color="white")
+    ax.tick_params(axis="x", colors="white")
+    fig.autofmt_xdate()
+    plt.tight_layout()
+    path = os.path.join(tempfile.gettempdir(), "mvrv_chart.png")
+    plt.savefig(path, dpi=160)
+    plt.close(fig)
+    return path
 
 
 def main():
