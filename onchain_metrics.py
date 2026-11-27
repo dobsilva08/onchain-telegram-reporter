@@ -59,6 +59,16 @@ def fetch_mvrv_sopr():
     return result
 
 
+def _aggregate_circulating(value):
+    """DeFiLlama historical rows expose circulating supply as a per-coin mapping."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, dict):
+        numeric = [float(v) for v in value.values() if isinstance(v, (int, float))]
+        return sum(numeric) if numeric else None
+    return None
+
+
 def fetch_stablecoin_liquidity():
     result = {"total_usd": None, "change_30d_pct": None, "source": "DeFiLlama", "available": False}
     try:
@@ -67,8 +77,8 @@ def fetch_stablecoin_liquidity():
             return result
         latest = series[-1]
         latest_ts = latest.get("date")
-        latest_val = latest.get("totalCirculating")
-        if not isinstance(latest_val, (int, float)):
+        latest_val = _aggregate_circulating(latest.get("totalCirculating"))
+        if latest_val is None:
             return result
         prior = None
         if isinstance(latest_ts, (int, float)):
@@ -76,7 +86,7 @@ def fetch_stablecoin_liquidity():
             prior = min(series, key=lambda p: abs(p.get("date", 0) - target))
         elif len(series) >= 31:
             prior = series[-31]
-        prior_val = prior.get("totalCirculating") if prior else None
+        prior_val = _aggregate_circulating(prior.get("totalCirculating")) if prior else None
         result["total_usd"] = latest_val
         if isinstance(prior_val, (int, float)) and prior_val:
             result["change_30d_pct"] = (latest_val / prior_val - 1) * 100
