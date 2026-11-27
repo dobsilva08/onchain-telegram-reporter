@@ -37,38 +37,104 @@ def interpret_liquidity(v):
     return "Oferta agregada estável."
 
 
-def build_report(data):
-    vp = data.get("valuation_profitability", {}) or {}
-    liq = data.get("stablecoin_liquidity", {}) or {}
-    mvrv = vp.get("mvrv_zscore")
-    sopr = vp.get("sopr")
-    sopr7 = vp.get("sopr_7d")
-    change = liq.get("change_30d_pct")
-    lines = [
-        "🧭 <b>BTC — ON-CHAIN INTELLIGENCE</b>",
-        f"<i>{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</i>",
-        "", "━━━━━━━━━━━━━━", "📊 <b>VALUATION</b>", "",
-        f"• MVRV Z-Score: <code>{mvrv if mvrv is not None else 'N/D'}</code>",
-        "• Fonte: Kote Charts (API; disponibilidade depende da chave e endpoint)",
-        "• Atribuição: https://kotecharts.com/c/mvrv-z-score",
-        "", "━━━━━━━━━━━━━━", "💰 <b>PROFITABILITY — SOPR</b>", "",
-        f"• SOPR diário: <code>{sopr if sopr is not None else 'N/D'}</code>",
-        f"• SOPR média 7d: <code>{sopr7 if sopr7 is not None else 'N/D'}</code>",
-        f"• Contexto: {interpret_sopr(sopr)}",
-        "• Atribuição: https://kotecharts.com/c/sopr",
-        "", "━━━━━━━━━━━━━━", "💧 <b>STABLECOIN LIQUIDITY</b>", "",
-        f"• Oferta agregada: <code>{money(liq.get('total_usd'))}</code>",
-        f"• Variação aproximada 30d: <code>{pct(change)}</code>",
-        f"• Data da série: <code>{liq.get('date', 'N/D')}</code>",
-        f"• Contexto: {interpret_liquidity(change)}",
-        "• Fonte: DeFiLlama — API pública",
-        "", "━━━━━━━━━━━━━━", "📝 <b>INTERPRETAÇÃO EXECUTIVA</b>", "",
-        f"• Valuation: {'indicador disponível' if mvrv is not None else 'dados indisponíveis; sem inferência'}.",
-        f"• Realização: {interpret_sopr(sopr)}",
-        f"• Liquidez: {interpret_liquidity(change)}",
-        "", "⚠️ <i>Indicadores são contextuais, não sinais automáticos nem recomendação financeira.</i>",
-        "🤖 <i>Relatório independente via GitHub Actions.</i>",
-    ]
+def fmt(v, digits=3):
+    return "N/D" if not isinstance(v, (int, float)) else f"{v:.{digits}f}"
+
+def load_history():
+    path="onchain_intelligence_history.json"
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+def save_history(data, history):
+    vp=data.get("valuation_profitability", {}) or {}
+    liq=data.get("stablecoin_liquidity", {}) or {}
+    entry={"date":datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+           "mvrv":vp.get("mvrv_zscore"),"sopr":vp.get("sopr"),"sopr7":vp.get("sopr_7d"),
+           "stablecoins":liq.get("total_usd"),"stable_change":liq.get("change_30d_pct")}
+    history.append(entry)
+    # Keep a rolling history and avoid duplicate entries for the same UTC date.
+    history=[h for h in history if h.get("date") != entry["date"]]
+    history.append(entry)
+    history=history[-365:]
+    with open("onchain_intelligence_history.json","w",encoding="utf-8") as f:
+        json.dump(history,f,ensure_ascii=False,indent=2)
+    return history
+
+def delta_text(current, previous, label, digits=3):
+    if not isinstance(current,(int,float)) or not isinstance(previous,(int,float)):
+        return f"{label}: comparação anterior indisponível."
+    change=current-previous
+    return f"{label}: {previous:.{digits}f} → {current:.{digits}f} ({change:+.{digits}f})."
+
+def interpret_mvrv(v):
+    if not isinstance(v,(int,float)): return "Dados indisponíveis; não é possível avaliar valuation."
+    if v < 0: return "Z-Score negativo: valuation abaixo da referência histórica calculada; pode refletir estresse, mas não confirma fundo."
+    if v < 1: return "Faixa relativamente moderada/baixa frente aos extremos históricos; não indica euforia isoladamente."
+    if v < 3: return "Valuation em faixa intermediária; observar tendência e demais indicadores."
+    return "Valuation elevado frente ao histórico; risco de aquecimento aumenta, sem ser sinal automático de topo."
+
+def sopr_context(v):
+    if not isinstance(v,(int,float)): return "Dados indisponíveis."
+    if v < 1: return "SOPR abaixo de 1 indica realização agregada de moedas movimentadas com prejuízo."
+    if v > 1: return "SOPR acima de 1 indica realização agregada de moedas movimentadas com lucro."
+    return "SOPR próximo de 1 indica equilíbrio entre lucro e prejuízo realizado."
+
+def build_report(data, history):
+    vp=data.get("valuation_profitability",{}) or {}
+    liq=data.get("stablecoin_liquidity",{}) or {}
+    mvrv=vp.get("mvrv_zscore"); sopr=vp.get("sopr"); sopr7=vp.get("sopr_7d")
+    change=liq.get("change_30d_pct"); total=liq.get("total_usd")
+    prev=next((h for h in reversed(history[:-1]) if h.get("date") != history[-1].get("date")),None) if history else None
+    # prior record is the last available record before today's appended snapshot
+    if history and len(history)>=2: prev=history[-2]
+    lines=["🧭 <b>BTC — ON-CHAIN INTELLIGENCE</b>",f"<i>{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</i>",
+    "", "━━━━━━━━━━━━━━","📊 <b>VALUATION — MVRV Z-SCORE</b>","",
+    f"• Atual: <code>{fmt(mvrv)}</code>",
+    f"• Comparação: {delta_text(mvrv,prev.get('mvrv') if prev else None,'MVRV')}",
+    f"• Interpretação: {interpret_mvrv(mvrv)}","• Fonte: Kote Charts","• Atribuição: https://kotecharts.com/c/mvrv-z-score",
+    "", "━━━━━━━━━━━━━━","💰 <b>PROFITABILITY — SOPR</b>","",
+    f"• SOPR diário: <code>{fmt(sopr,6)}</code>",
+    f"• Média 7d: <code>{fmt(sopr7,6)}</code>",
+    f"• Comparação diária: {delta_text(sopr,prev.get('sopr') if prev else None,'SOPR',6)}",
+    f"• Contexto diário: {sopr_context(sopr)}",
+    f"• Contexto média 7d: {sopr_context(sopr7)}",
+    "• Atribuição: https://kotecharts.com/c/sopr",
+    "", "━━━━━━━━━━━━━━","💧 <b>STABLECOIN LIQUIDITY</b>","",
+    f"• Oferta agregada: <code>{money(total)}</code>",
+    f"• Variação aproximada 30d: <code>{pct(change)}</code>",
+    f"• Data da série: <code>{liq.get('date') or 'N/D'}</code>",
+    f"• Comparação: {delta_text(total,prev.get('stablecoins') if prev else None,'Oferta stablecoins',2)}",
+    f"• Interpretação: {interpret_liquidity(change)}","• Fonte: DeFiLlama — API pública",
+    "", "━━━━━━━━━━━━━━","🧠 <b>ANÁLISE CRUZADA</b>",""]
+    # rule-based joint interpretation
+    if isinstance(mvrv,(int,float)) and isinstance(sopr7,(int,float)) and isinstance(change,(int,float)):
+        if mvrv < 1 and sopr7 < 1 and change < 0:
+            joint="Valuation moderado/baixo, realização semanal com prejuízo e oferta de stablecoins em retração. Contexto cauteloso; pode ser estresse ou acumulação, sem confirmação."
+        elif mvrv < 1 and sopr7 < 1:
+            joint="Valuation moderado/baixo junto de realização com prejuízo. Acompanhar recuperação do SOPR e evolução da liquidez."
+        elif sopr7 > 1 and change > 0:
+            joint="Realização semanal com lucro e oferta de stablecoins em expansão; combinação potencialmente mais favorável, mas exige confirmação de preço e fluxo."
+        elif change < 0:
+            joint="Oferta de stablecoins em retração é fator de cautela; SOPR e valuation devem ser acompanhados para confirmação."
+        else:
+            joint="Indicadores apresentam sinais mistos; não há confirmação direcional forte."
+    else:
+        joint="Dados incompletos para análise cruzada robusta."
+    lines.append("• "+joint)
+    lines.extend(["","━━━━━━━━━━━━━━","🔮 <b>CENÁRIOS CONDICIONAIS</b>","",
+    "• <b>Bullish:</b> SOPR sustenta acima de 1, liquidez estabiliza/expande e preço confirma melhora.",
+    "• <b>Neutro:</b> métricas oscilam sem convergência; mercado permanece em consolidação.",
+    "• <b>Bearish:</b> SOPR permanece abaixo de 1, liquidez continua contraindo e preço perde suportes relevantes.",
+    "• Cenários são condicionais, não previsões nem sinais automáticos.",
+    "", "━━━━━━━━━━━━━━","🎯 <b>CONCLUSÃO EXECUTIVA</b>","",
+    f"• Valuation: {interpret_mvrv(mvrv)}",
+    f"• Realização: {sopr_context(sopr7)}",
+    f"• Liquidez: {interpret_liquidity(change)}",
+    "", "⚠️ <i>Indicadores são contextuais, não sinais automáticos nem recomendação financeira.</i>",
+    "🤖 <i>Relatório independente via GitHub Actions.</i>"])
     return "\n".join(lines)
 
 
@@ -172,7 +238,7 @@ def generate_mvrv_chart(series, current_value):
 def main():
     print("Coletando indicadores independentes...")
     data = collect_new_metrics()
-    message = build_report(data)
+    history=load_history()\n    history=save_history(data,history)\n    message = build_report(data,history)
     print(message)
     vp=data.get('valuation_profitability',{}) or {}
     chart=generate_mvrv_chart(vp.get('mvrv_series'),vp.get('mvrv_zscore'))
