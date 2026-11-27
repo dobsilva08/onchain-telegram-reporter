@@ -110,12 +110,31 @@ def generate_mvrv_chart(series, current_value):
         price_data = payload.json().get("prices", [])
         price_dates = [datetime.fromtimestamp(p[0] / 1000, tz=timezone.utc) for p in price_data if len(p) >= 2]
         prices = [p[1] for p in price_data if len(p) >= 2]
+        if not prices:
+            raise ValueError("CoinGecko returned no price points")
     except Exception as exc:
-        print(f"[CHART] BTC price history unavailable: {exc}")
+        print(f"[CHART] CoinGecko unavailable; trying Blockchain.info: {exc}")
+        try:
+            fallback = requests.get(
+                "https://api.blockchain.info/charts/market-price",
+                params={"timespan": "all", "format": "json"},
+                timeout=20,
+            )
+            fallback.raise_for_status()
+            price_data = fallback.json().get("values", [])
+            price_dates = [datetime.fromtimestamp(p["x"], tz=timezone.utc) for p in price_data if "x" in p and "y" in p]
+            prices = [p["y"] for p in price_data if "x" in p and "y" in p]
+        except Exception as fallback_exc:
+            print(f"[CHART] BTC price history unavailable from fallback: {fallback_exc}")
 
     fig, ax = plt.subplots(figsize=(11, 5), facecolor="#111111")
     ax.set_facecolor("#111111")
     ax.plot(dates, vals, color="#D4AF37", linewidth=1.8, label="MVRV Z-Score")
+    # 365-day rolling mean of MVRV.
+    if len(vals) >= 365:
+        rolling = [None] * 364
+        rolling.extend([sum(vals[i-364:i+1]) / 365 for i in range(364, len(vals))])
+        ax.plot(dates, rolling, color="#A78BFA", linewidth=1.4, label="Média móvel 365d")
     ax.axhline(0, color="red", linestyle="--", linewidth=1.5, label="Referência 0")
     ax.scatter([dates[-1]], [vals[-1]], color="white", s=45, zorder=4)
     ax.annotate(f"Atual: {current_value}", (dates[-1], vals[-1]), xytext=(-60, 12),
@@ -129,9 +148,10 @@ def generate_mvrv_chart(series, current_value):
 
     if price_dates and prices:
         ax2 = ax.twinx()
-        ax2.plot(price_dates, prices, color="#3B82F6", linewidth=1.3, alpha=.85, label="BTC/USD")
-        ax2.set_ylabel("Preço BTC (USD)", color="#3B82F6")
-        ax2.tick_params(axis="y", colors="#3B82F6")
+        ax2.plot(price_dates, prices, color="#14B8A6", linewidth=1.3, alpha=.9, label="Preço BTC/USD")
+        ax2.set_yscale("log")
+        ax2.set_ylabel("Preço BTC (USD, escala log)", color="#14B8A6")
+        ax2.tick_params(axis="y", colors="#14B8A6")
         for sp in ax2.spines.values():
             sp.set_color("#555555")
         lines, labels = ax.get_legend_handles_labels()
@@ -157,7 +177,7 @@ def main():
     print(message)
     vp=data.get('valuation_profitability',{}) or {}
     chart=generate_mvrv_chart(vp.get('mvrv_series'),vp.get('mvrv_zscore'))
-    if chart: send_photo(chart,'📊 <b>BTC — MVRV Z-Score</b>\\nLinha vermelha tracejada: referência 0.')
+    if chart: send_photo(chart,'📊 <b>BTC — Preço × MVRV Z-Score</b>\\nDourado: MVRV; roxo: média 365d; verde: preço BTC/USD; vermelho tracejado: zero.')
     send(message)
     print("Relatório enviado ao Telegram.")
 
