@@ -240,7 +240,8 @@ def main():
     print("Coletando indicadores independentes...")
     data = collect_new_metrics()
     history=load_history()
-    history=save_history(data,history)\n    message = build_report(data,history)
+    history=save_history(data,history)
+    message = build_report(data,history)
     print(message)
     vp=data.get('valuation_profitability',{}) or {}
     chart=generate_mvrv_chart(vp.get('mvrv_series'),vp.get('mvrv_zscore'))
