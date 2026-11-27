@@ -95,7 +95,7 @@ def build_report(data, history):
     "", "━━━━━━━━━━━━━━","📊 <b>VALUATION — MVRV Z-SCORE</b>","",
     f"• Atual: <code>{fmt(mvrv)}</code>",
     f"• Comparação: {delta_text(mvrv,prev.get('mvrv') if prev else None,'MVRV')}",
-    f"• Interpretação: {interpret_mvrv(mvrv)}","• Fonte: Kote Charts","• Atribuição: https://kotecharts.com/c/mvrv-z-score",
+    f"• Interpretação: {interpret_mvrv(mvrv)}",
     "", "━━━━━━━━━━━━━━","💰 <b>PROFITABILITY — SOPR</b>","",
     f"• SOPR diário: <code>{fmt(sopr,6)}</code>",
     f"• Média 7d: <code>{fmt(sopr7,6)}</code>",
