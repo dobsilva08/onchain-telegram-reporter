@@ -1,0 +1,33 @@
+name: BTC On-Chain Intelligence
+
+on:
+  schedule:
+    - cron: "25 9 * * *" # 06:25 BRT
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: onchain-intelligence
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Generate and send standalone report
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          KOTE_API_KEY: ${{ secrets.KOTE_API_KEY }}
+        run: python onchain_intelligence.py
