@@ -42,9 +42,10 @@ def _value(point, preferred):
 
 
 def fetch_mvrv_sopr():
-    result = {"mvrv_zscore": None, "sopr": None, "sopr_7d": None, "source": "Kote Charts", "available": False}
+    result = {"mvrv_zscore": None, "sopr": None, "sopr_7d": None, "mvrv_series": None, "source": "Kote Charts", "available": False}
     mvrv = _kote_series("mvrv-z-score")
     sopr = _kote_series("sopr")
+    result["mvrv_series"] = mvrv
     if mvrv:
         result["mvrv_zscore"] = _value(mvrv[-1], ["mvrvZ", "zscore", "zScore", "value"])
         result["mvrv_date"] = mvrv[-1].get("t")
