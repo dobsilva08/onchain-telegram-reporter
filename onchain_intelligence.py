@@ -158,7 +158,8 @@ def generate_mvrv_chart(series, current_value):
     else:
         ax.legend(loc="upper left", bbox_to_anchor=(0, 0.90), facecolor="#222222", labelcolor="white")
 
-    ax.text(0.015, 0.985, f"MVRV Atual: {float(current_value):.3f}" if isinstance(current_value, (int, float)) else f"MVRV Atual: {current_value}", transform=ax.transAxes, va="top", ha="left", color="#D4AF37", fontsize=12, fontweight="bold", bbox=dict(boxstyle="round,pad=0.35", facecolor="#222222", edgecolor="#D4AF37", alpha=0.95))\n    ax.set_title("Bitcoin — Preço BTC/USD × MVRV Z-Score", color="white")
+    ax.text(0.015, 0.985, f"MVRV Atual: {float(current_value):.3f}" if isinstance(current_value, (int, float)) else f"MVRV Atual: {current_value}", transform=ax.transAxes, va="top", ha="left", color="#D4AF37", fontsize=12, fontweight="bold", bbox=dict(boxstyle="round,pad=0.35", facecolor="#222222", edgecolor="#D4AF37", alpha=0.95))
+    ax.set_title("Bitcoin — Preço BTC/USD × MVRV Z-Score", color="white")
     ax.tick_params(axis="x", colors="white")
     fig.autofmt_xdate()
     plt.tight_layout()
