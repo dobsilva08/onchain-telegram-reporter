@@ -30,3 +30,14 @@ def send(message: str, parse_mode: str = "HTML"):
     if not result.get("ok"):
         raise RuntimeError(f"Telegram não confirmou envio: {result}")
     return result
+
+
+def send_photo(image_path: str, caption: str = ""):
+    token=os.getenv("TELEGRAM_BOT_TOKEN"); chat_id=os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id: raise RuntimeError("Telegram secrets ausentes")
+    url=f"https://api.telegram.org/bot{token}/sendPhoto"
+    with open(image_path,"rb") as photo:
+        response=requests.post(url,data={"chat_id":chat_id,"caption":caption[:1024],"parse_mode":"HTML"},files={"photo":photo},timeout=45)
+    response.raise_for_status();result=response.json()
+    if not result.get("ok"): raise RuntimeError(f"Telegram não confirmou envio da imagem: {result}")
+    return result
