@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Standalone daily BTC On-Chain Intelligence report. Does not modify the legacy pipeline."""
 import os
+import json
 import tempfile
 import requests
 import matplotlib.pyplot as plt
@@ -238,7 +239,8 @@ def generate_mvrv_chart(series, current_value):
 def main():
     print("Coletando indicadores independentes...")
     data = collect_new_metrics()
-    history=load_history()\n    history=save_history(data,history)\n    message = build_report(data,history)
+    history=load_history()
+    history=save_history(data,history)\n    message = build_report(data,history)
     print(message)
     vp=data.get('valuation_profitability',{}) or {}
     chart=generate_mvrv_chart(vp.get('mvrv_series'),vp.get('mvrv_zscore'))
