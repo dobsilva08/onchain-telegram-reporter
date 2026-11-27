@@ -102,13 +102,12 @@ def build_report(data, history):
     f"• Comparação diária: {delta_text(sopr,prev.get('sopr') if prev else None,'SOPR',6)}",
     f"• Contexto diário: {sopr_context(sopr)}",
     f"• Contexto média 7d: {sopr_context(sopr7)}",
-    "• Atribuição: https://kotecharts.com/c/sopr",
     "", "━━━━━━━━━━━━━━","💧 <b>STABLECOIN LIQUIDITY</b>","",
     f"• Oferta agregada: <code>{money(total)}</code>",
     f"• Variação aproximada 30d: <code>{pct(change)}</code>",
     f"• Data da série: <code>{liq.get('date') or 'N/D'}</code>",
     f"• Comparação: {delta_text(total,prev.get('stablecoins') if prev else None,'Oferta stablecoins',2)}",
-    f"• Interpretação: {interpret_liquidity(change)}","• Fonte: DeFiLlama — API pública",
+    f"• Interpretação: {interpret_liquidity(change)}",
     "", "━━━━━━━━━━━━━━","🧠 <b>ANÁLISE CRUZADA</b>",""]
     # rule-based joint interpretation
     if isinstance(mvrv,(int,float)) and isinstance(sopr7,(int,float)) and isinstance(change,(int,float)):
