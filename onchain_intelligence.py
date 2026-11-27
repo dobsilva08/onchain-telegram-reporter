@@ -2,6 +2,7 @@
 """Standalone daily BTC On-Chain Intelligence report. Does not modify the legacy pipeline."""
 import os
 import tempfile
+import requests
 import matplotlib.pyplot as plt
 from telegram_sender import send_photo
 from datetime import datetime, timezone
